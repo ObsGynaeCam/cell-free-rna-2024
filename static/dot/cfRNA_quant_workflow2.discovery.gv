@@ -1,0 +1,48 @@
+digraph G {
+  /*rankdir=LR; */
+  node [fontname = "Handlee", color=black, fontcolor=black];
+  edge [fontname = "Handlee", color=black, fontcolor=black];
+
+  quant_pops [
+    label = "Quantification";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+
+  deg_pops [
+    label = "DEG";
+    shape = rect;
+  ];
+
+  core_deg[
+    label = "Core DEG";
+    shape = rect;
+  ];
+
+  best_model [
+    label = "Best model";
+    style = "rounded,filled";
+    fillcolor = "darkgoldenrod2"
+    shape = rect;
+    color = black;
+  ];
+
+  check_top1[
+    label = "Top1% DEG\nby all methods";
+    shape = diamond;
+  ];
+
+  quant_pops-> deg_pops[label="DESeq2"];
+  quant_pops-> deg_pops[label="edgeR"];
+  quant_pops-> deg_pops[label="Logistic\nRegression"];
+
+  deg_pops-> check_top1;
+  check_top1-> core_deg;
+  core_deg-> best_model [label="5-fold CV\n11 ML methods"];
+
+/*
+  {rank=same; check_top1  core_deg} 
+  {rank=same; best_model deg_pops} 
+*/
+}

@@ -1,0 +1,256 @@
+
+```{r logistic_regression2, eval=F}
+  ################################################
+  ## Logistic regression for the eligible genes ##
+  ################################################
+  my.RData<-paste0("RData/dl.logregZ.",my.type,".",my.salmon.index,".RData")
+  if(file.exists(my.RData)){
+    load(my.RData)
+  }else{
+    dl.logregZ<-list()
+
+    # logCPMZ
+    this.mat<-dt.cpmZ[,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") #%>% as.data.frame
+    this.mat %>% dim
+    this.mat[1:20,c("y","LEP","PAPPA2")]
+
+    for(my.GA in names(li.GA)[1:3]){
+      this.samples<-colnames(dds.f2)[colData(dds.f2)$GA==my.GA]
+      foo<-list() # per GA
+      for(my.ID in rownames(dds.f2)){
+          #message(paste(my.GA,my.ID))
+          df.mat<-this.mat[this.samples,c("y",my.ID)] %>% as.data.frame
+          my.model<-glm(y ~., data=df.mat, family="binomial")
+          #oddsratio::or_glm(data=df.mat, model=my.model, incr=list(OID20239=1))
+
+          # Log Odds Ratio & p-values & CI
+          #my.model %>% summary
+          #coef(summary(my.model)) # isa 'matrix'
+          foo1<-as.data.frame(coef(summary(my.model)))
+
+          #cbind(coef(my.model), confint(my.model)) # Log Odds Ratio & CI (95%)
+          #exp(cbind(coef(my.model), confint(my.model))) # Odds Ratio & CI (95%)
+          foo2<-as.data.frame(exp(cbind(coef(my.model), confint(my.model)))) # Odds Ratio & CI (95%)
+
+          #foo3<-cbind(my.ID,cbind(foo1,foo2)[my.ID,]) %>% data.table 
+          foo3<-cbind(my.ID,cbind(foo1,foo2)[2,]) %>% data.table 
+          colnames(foo3)<-c("gene_id","log_odds","se","zval","pval","odds","odds_lo","odds_hi")
+
+          # ROC & AUC 
+          #predict(my.model,type=c("response"))  # probability
+          my.prob<-fitted(my.model) # same as above
+          # in case of NA in NPX (e.g. OID21043; FABP5)
+          if(nrow(df.mat)!=length(my.prob)){
+              dt.prob<-rbind(
+              data.table(`index`=as.numeric(names(my.prob)),`prob`=my.prob),
+              data.table(`index`=as.numeric(df.mat[,my.ID]%>% is.na %>% which), `prob`=NA)
+              )[order(index)]
+              my.prob<-dt.prob$prob
+          }
+          df.mat$prob<-my.prob
+          my.roc <- pROC::roc(y ~ prob, data = df.mat, quiet=T, ci=TRUE)
+
+          foo[[my.ID]] <- 
+          cbind(
+                foo3,
+                data.table(`auc`=my.roc$ci[2], 
+                            `auc_lo`=my.roc$ci[1], 
+                            `auc_hi`=my.roc$ci[3],
+                            `AIC`=aic(my.model),
+                            `BIC`=bic(my.model) ) 
+          )
+      } # end of for   
+      dl.logregZ[[my.GA]]<-rbindlist(foo)
+
+      # apply p.adjust
+      for(i in adjust.methods){
+          dl.logregZ[[my.GA]][,paste0("padj.",i):=p.adjust(pval,i)]
+      }
+    } # end of for my.GA
+    #
+    save(dl.logregZ, file=my.RData)
+
+  }
+
+  dl.logregZ[["28wk"]][order(-auc)][1:10]
+  dl.logregZ[["28wk"]][order(AIC)][1:10]
+
+  dl.logregZ[["28wk"]][padj.BH<0.05]
+  dl.logregZ[["28wk"]][padj.BH<0.01]
+  dl.logregZ[["28wk"]][padj.BY<0.05]
+  dl.logregZ[["28wk"]][padj.bonferroni<0.05]
+
+  dl.logregZ[["28wk"]][padj.BH<0.05]
+```
+
+## The number of significant genes
++ Based on `r dds.f2 %>% nrow` considered for DEG analysis.
++ Genes were selected if they pass the 5% FDR threshold when the `p-value` is calculated to test the null hypothesis that OR=1.
+```{r univ_reg_res1z}
+  if(!exists("dl.logregZ")){load(paste0("RData/dl.logregZ.",my.type,".",my.salmon.index,".RData"))}
+
+  my.matZ<-matrix(c(
+  dl.logregZ[["12wk"]][padj.BH<0.05,.N],
+  dl.logregZ[["12wk"]][padj.BY<0.05,.N],
+  dl.logregZ[["12wk"]][padj.bonferroni<0.05,.N],
+  dl.logregZ[["20wk"]][padj.BH<0.05,.N],
+  dl.logregZ[["20wk"]][padj.BY<0.05,.N],
+  dl.logregZ[["20wk"]][padj.bonferroni<0.05,.N],
+  dl.logregZ[["28wk"]][padj.BH<0.05,.N],
+  dl.logregZ[["28wk"]][padj.BY<0.05,.N],
+  dl.logregZ[["28wk"]][padj.bonferroni<0.05,.N]),
+  ncol=3,dimnames=list(`padj`=c("BH<0.05","BY<0.05","bon<0.05"),`GA`=c("12wk","20wk","28wk"))
+  )
+
+  my.matZ
+```
++ `0` genes of BH<0.01
+
+## Histogram of p-value frequency
+```{r hist_pval_logregz, fig.cap="P-values from LR"}
+  hist(dl.logregZ[["28wk"]]$pval)
+```
+
+## 28wk - Top 10 (by AUC)
+```{r univ_reg_res_top10_aucz}
+  #dl.logregZ[["28wk"]][order(-auc)][1:10]
+  dt.OR<-dl.logregZ[["28wk"]][order(-auc)][1:10][,.(gene_id,AUC=auc,AUC_lo=auc_lo,AUC_hi=auc_hi,log_odds,AIC,`p-value`=pval)]
+
+  dt.OR %>%  
+  kbl(booktabs=T,caption="Top 10 by AUC (using z-score)") %>%
+    kable_styling(latex_options = c("striped","scale_down"))
+```
+
+## 28wk - Top 10 (by AIC)
+```{r univ_reg_res_top10_AICz}
+  #dl.logregZ[["28wk"]][order(AIC)][1:10]
+  dt.OR<-dl.logregZ[["28wk"]][order(AIC)][1:10][,.(gene_id,AUC=auc,AUC_lo=auc_lo,AUC_hi=auc_hi,log_odds,AIC,`p-value`=pval)]
+
+  dt.OR %>%  
+  kbl(booktabs=T,caption="Top 10 by AIC (uing z-score)") %>%
+    kable_styling(latex_options = c("striped","scale_down"))
+```
+
+```{r deg_regz}
+if(F){
+## DESeq2 & edgeR & logit
+  venn.degz<-list(`DESeq2`=dl.resLFC[["28wk"]][BH<0.05]$gene_id,
+                   `edgeR`=dl.res.edgeR[["28wk"]][BH<0.05]$gene_id,
+                  `LR`=dl.logregZ[["28wk"]][padj.BH<0.05]$gene_id
+                  )
+  dt.venn.degz<-lapply(names(venn.degz), function(i) data.table(i,venn.degz[[i]])) %>% rbindlist %>% dcast.data.table(V2~i, fun=length)
+  setnames(dt.venn.degz,"V2","Gene")
+  dt.venn.degz[DESeq2==1 & edgeR==1 & LR==1] # n=1427
+  ggvenn::ggvenn(venn.degz,fill_color=rep("grey100",length(venn.degz)),set_name_size=7,text_size=7,stroke_size=.7,show_percentage=FALSE)
+
+## Logit top 1 % by pval, auc, aic
+  venn.logitZ<-list(
+                  `Pval`=dl.logregZ[["28wk"]][order(pval)][1:151]$gene_id,
+                  `AUC`=dl.logregZ[["28wk"]][order(-auc)][1:151]$gene_id,
+                  `AIC`=dl.logregZ[["28wk"]][order(AIC)][1:151]$gene_id
+                  )
+  dt.venn.logitZ<-lapply(names(venn.logitZ), function(i) data.table(i,venn.logitZ[[i]])) %>% rbindlist %>% dcast.data.table(V2~i, fun=length)
+  setnames(dt.venn.logitZ,"V2","Gene")
+  dt.venn.logitZ[Pval==1 & AUC==1 & AIC==1]
+  ggvenn::ggvenn(venn.logitZ,fill_color=rep("grey100",length(venn.logit)),set_name_size=7,text_size=7,stroke_size=.7,show_percentage=FALSE)
+}
+
+  venn.top1pctZ<-list(`DESeq2`=dl.resLFC[["28wk"]][order(pvalue)][1:151]$gene_id,
+                   `edgeR`=dl.res.edgeR[["28wk"]][order(PValue)][1:151]$gene_id,
+                  `AUC`=dl.logregZ[["28wk"]][order(-auc)][1:151]$gene_id,
+                  `AIC`=dl.logregZ[["28wk"]][order(AIC)][1:151]$gene_id
+                  )
+
+  # the union of all
+  dt.venn.top1pctZ<-lapply(names(venn.top1pctZ), function(i) data.table(i,venn.top1pctZ[[i]])) %>% rbindlist %>% dcast.data.table(V2~i, fun=length)
+  setnames(dt.venn.top1pctZ,"V2","Gene")
+  top1pct.genesZ<-dt.venn.top1pctZ[AIC==1 & AUC==1 & DESeq2==1 & edgeR==1]$Gene
+```
+
+```{r top3_logit_prepz, eval=F}
+  ############################################
+  ## Top 3 signals from DESeq2, edgeR or LR ##
+  ############################################
+  li.top3Z<-list(
+                `DESeq2`=dl.resLFC[["28wk"]][order(pvalue)][1:3]$gene_id %>% sort,
+                "edgeR"=dl.res.edgeR[["28wk"]][order(PValue)][1:3]$gene_id %>% sort,
+                "AIC"=dl.logregZ[["28wk"]][order(AIC)][1:3]$gene_id %>% sort,
+                "AUC"=dl.logregZ[["28wk"]][order(-auc)][1:3]$gene_id %>% sort,
+                "Pval"=dl.logregZ[["28wk"]][order(pval)][1:3]$gene_id %>% sort
+                )
+  li.top3Z %>% unlist %>% unique
+
+  df.mat.top3Z <- dt.cpmZ[geneName %in% unique(unlist(li.top3Z)) & GA=="28wk",.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") %>% as.data.frame
+
+  li.top3logitZ<-lapply(li.top3Z, function(my.subsets){
+      foo<-list()
+      df.mat<-df.mat.top3Z[,c("y",my.subsets)]
+      my.model<-glm(y~. , data = df.mat, family = "binomial") # fit the model based on the selected proteins
+
+      if(F){
+      # https://www.statology.org/variance-inflation-factor-r/
+      my.model %>% summary
+      car::vif(my.model)
+      broom::tidy(my.model)
+      broom::glance(my.model)
+      broom::augment(my.model)
+
+      # https://stackoverflow.com/questions/56350546/how-to-use-the-box-tidwell-function-with-a-logistic-regression-in-r
+      logodds<-my.model$linear.predictors
+      plot(logodds ~ df.mat$LEP)
+
+      #
+      car::boxTidwell(y~ LEP, data=df.mat)
+      df.mat$LEP<-df.mat$LEP+0.001
+      car::boxTidwell(y~ LEP, data=df.mat)
+      }
+
+      
+      foo1<-as.data.frame(coef(summary(my.model)))
+      foo2<-as.data.frame(exp(cbind(coef(my.model), confint(my.model)))) # Odds Ratio & CI (95%)
+      cbind(rownames(foo1),foo1,foo2)[my.subsets,] # %>% data.table 
+      foo3<-cbind(rownames(foo1),foo1,foo2)[my.subsets,] %>% data.table 
+      colnames(foo3)<-c("gene_id","log_odds","se","zval","pval","odds","odds_lo","odds_hi")
+      foo3
+
+      my.prob<-fitted(my.model)
+      df.mat2<-df.mat
+      df.mat2$prob<-my.prob
+      my.roc <- pROC::roc(y ~ prob, data = df.mat2, quiet=T, ci=TRUE)
+
+      foo4<-data.table(
+      `N`=length(my.subsets),
+      `Genes`=paste(my.subsets,collapse=","),
+      `AIC`=my.model$aic,
+      `BIC`=BIC(my.model),
+      `AUC`=my.roc$ci[2]*100,
+      `Boot`=auc.adjust(df.mat, fit=my.model, B=1000)*100,  # optimism-adjusted AUC scores
+      `KFCV`=get_KFCV(x=df.mat, mc.cores=20), 
+      `LPOCV`=get_LPOCV(x=df.mat) 
+      ) 
+      foo[["adj.OR"]]<-foo3
+      foo[["IC"]]<-foo4
+      foo
+  })
+
+  #
+  my.RData<-paste0("RData/li.top3logitZ.",my.type,".",my.salmon.index,".RData")
+  save(li.top3logitZ, file=my.RData)
+```
+
+## Top 3 from edgeR (LR based on Z-score)
+```{r top3_logit1z}
+  if(!exists("li.top3logitZ"))load(paste0("RData/li.top3logitZ.",my.type,".",my.salmon.index,".RData"))
+
+  #li.top3logitZ[["edgeR"]]
+
+  # Information Criteria
+  li.top3logitZ[["edgeR"]][["IC"]] %>%
+    kbl(booktabs=T,caption="Performance measure") %>%
+    kable_styling(latex_options = c("striped","scale_down"))
+
+  # adjusted OR
+  li.top3logitZ[["edgeR"]][["adj.OR"]][,.(gene_id,log_odds,odds,odds_lo,odds_hi,pval)] %>%
+    kbl(booktabs=T,caption="Adjusted OR") %>%
+    kable_styling(latex_options = c("striped","scale_down"))
+```

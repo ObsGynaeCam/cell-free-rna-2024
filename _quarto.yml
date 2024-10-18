@@ -1,0 +1,52 @@
+project:
+  type: book
+  output-dir: docs
+  #output-dir: public
+
+execute:
+  freeze: auto
+
+book:
+  title: "cfRNA POP Study"
+  author: "[Sung Gong](https://sung.github.io/)"
+  date: last-modified #"08/10/2024"
+  page-footer:
+    left: |
+      Cookbook for the analysis of cell-free RNA, &copy; Sung Gong (2024)
+    right: |
+      This book was built with <a href="https://quarto.org/">Quarto</a>.
+  site-url: https://ObsGynaeCam.github.io/cell-free-rna-2024
+  repo-url: https://github.com/obsgynaecam/cell-free-rna-2024
+  repo-branch: main
+  repo-actions: [edit, source, issue]
+
+  chapters:
+    - index.qmd
+    - part: "Methods"
+      chapters:
+        - sample.qmd
+        - quant.qmd
+        - cross_validation.qmd
+    - part: "Supplementary Text"
+      chapters:
+        - SI_select_quant_method.qmd
+        - SI_trimming.qmd
+    - part: figure.qmd
+      chapters: 
+        - main_figure.qmd
+        - suppl_figure.qmd
+    #- references.qmd
+
+format:
+  html:
+    theme: 
+      light: cosmo
+      dark: solar 
+    code-line-numbers: true
+    code-fold: true
+    code-tools: true
+    highlight-style: gruvbox
+  #pdf:
+    #  documentclass: scrreprt
+
+bibliography: references.bib

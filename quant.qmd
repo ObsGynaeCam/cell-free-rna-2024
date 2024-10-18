@@ -1,0 +1,323 @@
+# RNA-seq data processing {#sec-mtd-rna-seq}
+
+## Transcript quantification {#sec-mtd-rna-seq-quant}
+
+For an RNA-seq quantification method applied in this study, we chose the most reliable approach based on the performance of predicting fetal sex by measuring the extent of chromosome Y encoded transcripts (see @sec-si-quant-method for detail). Based on this benchmark result, we chose [`Salmon`](https://combine-lab.github.io/salmon/) (v1.5.2) in mapping-mode to process our RNA-seq datasets. 
+
+### Salmon index {#sec-mtd-salmon-index}
+
+```{#lst-salmon-index .bash lst-cap="A pseudo-code to run `salmon index`" filename="static/shell/salmon.decoy.sh"}
+{{< include static/shell/salmon.decoy.sh >}}
+```
+
+### Salmon quant {#sec-mtd-salmon-quant}
+
+```{#lst-salmon-quant .bash lst-cap="A pseudo-code to run `salmon quant` in mapping mode" filename="static/shell/salmon-quant.sh"}
+{{< include static/shell/salmon-quant.sh >}}
+```
+
+## Differentially expressed gene analysis {#sec-mtd-deg}
+
+The differentially expressed gene analysis was conducted for each gestational epoch (12wk, 20wk, 28wk, and 36wk) separately, except for the 36wkGA gestation samples of the pre-term dataset which has only one PE case. 
+
+Firstly, the following parameters were defined:
+```{#lst-set-config .r lst-cap="Set the parameters" filename="static/R/config/cfRNA-2024.R"}
+{{< include static/R/config/cfRNA-2024.R >}}
+```
+
+The transcript-level read count matrices (e.g. quant.sf files) were imported using [`tximeta`](https://bioconductor.org/packages/release/bioc/html/tximeta.html) (v1.8.5) Bioconductor package and merged at the gene-level. 
+
+```{r prep-quant-sf}
+#| label: lst-prep-quant-sf
+#| lst-label: lst-prep-quant-sf
+#| eval: false
+#| code-summary: Code to set the `Salmon` quant files of the pre-term dataset (i.e. Discovery dataset)
+#| lst-cap: Code to set the `Salmon` quant files of the pre-term dataset (i.e. Discovery dataset)
+
+dt.foo<-data.table(`files`=system(paste0("ls ", "~/results/",my.slx,"/",my.salmon,"/",my.salmon.index,"/*/quant.sf"), intern=T))
+dt.foo[,names:=tstrsplit(files,"/",keep=8)]
+dt.colDataAll<-merge(dt.foo,dt.samples,by.x="names",by.y="SampleID") # n=755
+
+# pre-term
+dt.colData<-dt.colDataAll[Type==my.type] # n=279
+#dt.colData[grepl("-b$",names)] # CX (CX-b): both failed; HQ (HQ-b): only HQ-b passed QC according to illumina
+dt.colData<-dt.colData[!names %in% c("GS-59-CX-b","GS-179-HQ")] # remove these two samples (n=277)
+li.GA<-split(dt.colData, dt.colData$GA)
+
+#tx2gene
+dt.tx2gene<-fread("~/results/RNA-Seq/Placentome/gffcompare/POPS-2022/POPS-Placenta-Transcriptome/POPS-2022.GRCh38.88.Novel.Known.Freq.0.1.TPM.0.1.tr.reconstruction.tx2gene.txt", header=F,col.names=c("transcript_id","gene_id"))
+```
+
+```{r prep-dds}
+#| label: lst-prep-dds
+#| lst-label: lst-prep-dds
+#| eval: false
+#| code-summary: "Code to make `dds` (DESeq Data Set) object"
+#| lst-cap: "Code to make `dds` (DESeq Data Set) object"
+
+library(DESeq2)
+library(edgeR)
+library("BiocParallel")
+register(MulticoreParam(12))
+
+#tximeta via tx2gene
+# 36wk dataset excluded from the beginnin
+gse<-tximeta::tximeta(dt.colData[GA!="36wk"],
+                      skipMeta=T,
+                      tx2gene=dt.tx2gene[,.(transcript_id,gene_id)],txOut=F)
+
+# set up `dds` at gene-level
+my.design <- formula(~ Batch + GA + Sex + Condition)    # isa 'formula'
+dds <- DESeqDataSet(se=gse, design=my.design)
+
+dds$Group<-factor(paste0(dds$GA,dds$Condition)) # add 'Group'
+design(dds) <- formula(~ Batch + Sex + Group)     # isa 'formula'
+
+dds<- DESeq(dds, parallel=TRUE) # isa 'DESeqDataSet'
+```
+
+### `DESeq2` {#sec-mtd-deg-deseq2}
+
+We only considered genes found in ≥10% of samples (i.e. ≥ 23) having ≥10 reads, and discarded genes detected as dispersion outliers by [`DESeq2`](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) (v1.30.0).
+
+```{r set-dds1}
+#| label: lst-set-dds
+#| lst-label: lst-set-dds
+#| eval: false
+#| code-summary: Code to set up `dds` object
+#| lst-cap: Code to set up `dds` object
+# at leat 10 reads for at leat 10  % of the samples 
+keep <- rowSums(counts(dds) >= minRead) >= ncol(dds)*minFreq 
+dds.f<- DESeq(dds[keep,], parallel=TRUE) # isa 'DESeqDataSet'
+dim(dds.f) # 15380 x 221
+```
+
+A total of 15,150 genes and 221 samples were used to find differentially expressed genes by adjusting the batch number, the fetal sex, and the gestion of the samples in the design matrix of DESeq2. The p-values were calculated from the null hypothesis that the fold changes were less than or equal to 20% (i.e. lfcThreshold=log2(1.2)) in case and control groups. 
+
+```{r set-deg1}
+#| label: lst-set-deg
+#| lst-label: lst-set-deg
+#| eval: false
+#| code-summary: Code to find DEGs by DESeq
+#| lst-cap: Code to find DEGs by DESeq
+# remove dispOutlier genes
+keep2<-!is.na(rowData(dds.f)[,"dispOutlier"]) & !rowData(dds.f)[,"dispOutlier"]
+dds.f2<- DESeq(dds.f[keep2], parallel=T)
+
+dim(dds.f2) # 15150 x 221
+
+# apply shink separately for 12wk, 20wk, and 28wk (li.GA[1:3])
+li.resLFC<-lapply(names(li.GA)[1:3],function(my.GA){ 
+  my.res<-results(dds.f2, 
+          independentFiltering=FALSE, #by default independant filtering at FDR (alpha) 0.1 (10%) 
+          lfcThreshold=log2(minFC), 
+          contrast=c("Group",paste0(my.GA,c("Case","Control"))),
+          parallel=TRUE)  
+  lfcShrink(dds.f2, 
+            res=my.res,
+            lfcThreshold=log2(minFC), # not applicable for 'asher' 
+            type="ashr",
+            parallel=TRUE)  
+})
+names(li.resLFC)<-names(li.GA)[1:3]
+
+dl.resLFC<-lapply(li.resLFC, function(i)
+  data.table(`gene_id`=rownames(i), 
+              as.data.frame(i))[order(pvalue)][,`:=`("BH"=p.adjust(pvalue,"BH"),
+                                              "BY"=p.adjust(pvalue,"BY"),
+                                              "bf"=p.adjust(pvalue,"bonferroni"))]
+)
+fwrite(dl.resLFC[["28wk"]], file=paste0("static/R/result/DEG.DSeq2.28wk.",my.type,".",my.salmon.index,".csv"))
+```
+
+### `edgeR` {#sec-mtd-deg-edger}
+
+For [edgeR](https://bioconductor.org/packages/release/bioc/html/edgeR.html) (v3.32.1) analysis, we used `makeDGEList` function of `tximeta` Bioconductor package to convert the data object of the 15,150 genes across the 221 samples as mentioned above. The gene-level count matrix was normalised by using `calcNormFactors` function of `edgeR` with `TMM` method (trimmed mean of M values) and a quasi-likelihood negative binomial generalised log-linear model (i.e. `glmQLFit`) was applied to account for the batch number, the fetal sex and the gestation information in the design matrix of edgeR. For a statistical test, we used `glmTreat` of edgeR with at least 20% fold-change (i.e. lfc=log2(1.2)).
+
+```{r set-edger1}
+#| label: lst-set-edger
+#| lst-label: lst-set-edger
+#| eval: false
+#| code-summary: "Code to find DEGs by `edgeR`"
+#| lst-cap: "Code to find DEGs by `edgeR`"
+gse2 <-gse[rownames(dds.f2),]
+d2<-tximeta::makeDGEList(gse2)
+d2$samples<-cbind(d2$samples,colData(gse2))
+d2$samples$group<-factor(paste0(d2$samples$GA,d2$samples$Condition)) # add 'group'
+d2$samples$GA<-droplevels(d2$samples$GA) # 36wk removed
+d2$samples$Batch<-droplevels(d2$samples$Batch) # some batches removed
+
+# additional filter
+#keep <- filterByExpr(d2)
+#keep %>% table # FALSE:13, TRUE:15137
+#d2<-d2[keep,]
+
+# TMM normalisation (default). It adds `norm.factors` d2$samples
+# NB, we have `offsets`, which take precedence over lib.size and norm.factors
+d2<-calcNormFactors(d2,method="TMM") 
+                                    
+plotMDS(d2, col=as.numeric(d2$samples$GA))
+plotMDS(d2, col=as.numeric(d2$samples$Condition))
+
+# design
+my.design <- model.matrix(~ 0 + group + Sex + Batch , data=d2$samples) 		# isa 'matrix'
+(my.contrasts <- makeContrasts(`12wk`=group12wkCase-group12wkControl, 
+                              `20wk`=group20wkCase-group20wkControl, 
+                              `28wk`=group28wkCase-group28wkControl, 
+                              levels=my.design)
+)
+
+# dispersion
+#dp2 = estimateDisp(d2, design=my.design, verbose=T)
+dp2 = estimateGLMCommonDisp(d2, design=my.design, verbose=T) 
+dp2 = estimateGLMTrendedDisp(dp2, design=my.design, verbose=T)
+dp2 = estimateGLMTagwiseDisp(dp2, design=my.design)
+
+plotMDS(dp2)
+plotBCV(dp2)
+
+# fit
+#f = glmFit(dp2, design=my.design) # 
+f = glmQLFit(dp2, design=my.design) # QL(Quasi-like) pipeline
+
+plotMD(f)
+plotQLDisp(f)
+
+# get the edgeR results
+li.res.edgeR<-lapply(names(li.GA)[1:3], function(i){
+  te <- glmTreat(f, contrast=my.contrasts[,i], lfc=log2(minFC))
+  topTags(te, n=nrow(te))    # default sort by pvalue
+})
+names(li.res.edgeR) <-names(li.GA)[1:3] 
+
+dl.res.edgeR<-lapply(li.res.edgeR, function(i)
+  data.table(`gene_id`=rownames(i),i$table)[order(PValue)][,`:=`("BH"=p.adjust(PValue,"BH"),
+                                                                  "BY"=p.adjust(PValue,"BY"),
+                                                                  "bf"=p.adjust(PValue,"bonferroni"))]
+)
+lapply(dl.res.edgeR, function(i) i[FDR<0.05] %>% nrow)
+
+fwrite(dl.res.edgeR[["28wk"]], file=paste0("static/R/result/DEG.edgeR.28wk.",my.type,".",my.salmon.index,".csv"))
+```
+
+### The z-score matrix {#sec-zscore-mat}
+
+The gene-level count matrix was converted as the unit of CPM (Count Per Million), in log2-scale, via the “cpm” function of edgeR and it was further transformed into a matrix of the z-score using the mean and standard deviation of logCPM from the control samples of each corresponding gestational age group.
+
+```{r cnt-cpm}
+#| label: lst-cnt-cpm
+#| lst-label: lst-cnt-cpm
+#| eval: false
+#| code-summary: Code to make the z-score matrix from the discovery dataset
+#| lst-cap: Code to make the z-score matrix from the discovery dataset
+# CPM based on edgeR TMM  (NB, d isa "DGEList")
+dt.logcpm2<-merge(
+  data.table(`geneName`=rownames(d2),cpm(d2,log=T)) %>% 
+    melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="logCPM"),
+  dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+  )
+
+dt.cpmZ=merge(dt.logcpm2,
+              dt.logcpm2[Condition=="Control",.(Mean=mean(logCPM),SD=sd(logCPM)),.(GA,geneName)]
+      ,by=c("GA","geneName")
+      )[,.(Group,GA,Condition,SampleID,geneName,logCPM,logCPMZ=(logCPM-Mean)/SD)]
+#save(dt.cpmZ,file=my.cpmZ.RData) # cache to use it later
+```
+
+### Univariate logistic regression {#sec-logreg}
+
+Using the binary outcomes, (i.e. case and control status) as dependant variables and the z-scores as independent variables, we applied a generalised linear model for each of the 15,150 genes using the `glm` function of R `stat` package (v4.0.3). Both the [Akaike information criterion (AIC)](https://en.wikipedia.org/wiki/Akaike_information_criterion) and the [Bayesian information criterion (BIC)](https://en.wikipedia.org/wiki/Bayesian_information_criterion) were obtained from the corresponding univariable model and the area under the [ROC curve](https://en.wikipedia.org/wiki/Receiver_operating_characteristic) (AUC) was calculated using the [`pROC`](https://cran.r-project.org/web/packages/pROC/) package (v1.17.0.1). The p-values were calculated against the null hypothesis that is the odds ratio is equal to 1 and they were adjusted for multiple comparisons using [Benjamini and Hochberg method](https://en.wikipedia.org/wiki/False_discovery_rate#BH_procedure). The distribution of the p-values was tested against a uniform distribution using one-sample [Kolmogorov-Smirnov test](https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test), which is further explained in @sec-fig2a.
+
+```{r logreg}
+#| label: lst-logreg
+#| lst-label: lst-logreg
+#| eval: false
+#| code-summary: Code for univariate logisitic regression
+#| lst-cap: Code for univariate logisitic regression
+this.mat<-dt.cpmZ[,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% 
+  dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% 
+  as.matrix(rownames="SampleID") # logCPMZ
+
+for(my.GA in names(li.GA)[1:3]){ # for each 12wk, 20wk and 28wkGA
+  this.samples<-colnames(dds.f2)[colData(dds.f2)$GA==my.GA]
+  foo<-list() # per GA
+  for(my.ID in rownames(dds.f2)){
+      #message(paste(my.GA,my.ID))
+      df.mat<-this.mat[this.samples,c("y",my.ID)] %>% as.data.frame
+      my.model<-glm(y ~., data=df.mat, family="binomial")
+      #oddsratio::or_glm(data=df.mat, model=my.model, incr=list(OID20239=1))
+
+      # Log Odds Ratio & p-values & CI
+      #my.model %>% summary
+      #coef(summary(my.model)) # isa 'matrix'
+      foo1<-as.data.frame(coef(summary(my.model)))
+
+      #cbind(coef(my.model), confint(my.model)) # Log Odds Ratio & CI (95%)
+      #exp(cbind(coef(my.model), confint(my.model))) # Odds Ratio & CI (95%)
+      foo2<-as.data.frame(exp(cbind(coef(my.model), confint(my.model)))) # Odds Ratio & CI (95%)
+
+      foo3<-cbind(my.ID,cbind(foo1,foo2)[2,]) %>% data.table 
+      colnames(foo3)<-c("gene_id","log_odds","se","zval","pval","odds","odds_lo","odds_hi")
+
+      # ROC & AUC 
+      #predict(my.model,type=c("response"))  # predicted probability
+      my.prob<-fitted(my.model) # same as above
+      # no probability in case of NA in the matrix
+      if(nrow(df.mat)!=length(my.prob)){
+          dt.prob<-rbind(
+          data.table(`index`=as.numeric(names(my.prob)),`prob`=my.prob),
+          data.table(`index`=as.numeric(df.mat[,my.ID]%>% is.na %>% which), `prob`=NA)
+          )[order(index)]
+          my.prob<-dt.prob$prob
+      }
+      df.mat$prob<-my.prob
+      my.roc <- pROC::roc(y ~ prob, data = df.mat, quiet=T, ci=TRUE)
+
+      foo[[my.ID]] <- 
+      cbind(
+            foo3,
+            data.table(`auc`=my.roc$ci[2], 
+                        `auc_lo`=my.roc$ci[1], 
+                        `auc_hi`=my.roc$ci[3],
+                        `AIC`=aic(my.model),
+                        `BIC`=bic(my.model) ) 
+      )
+  } # end of for   
+  dl.logregZ[[my.GA]]<-rbindlist(foo)
+
+  # apply p.adjust
+  for(i in adjust.methods){
+      dl.logregZ[[my.GA]][,paste0("padj.",i):=p.adjust(pval,i)]
+  }
+} # end of for my.GA
+
+# cache to use it later
+#save(dl.logregZ, file=paste0("RData/dl.logregZ.",my.type,".",my.salmon.index,".RData"))
+```
+
+## Selection of core differentially expressed genes {#sec-core-deg}
+
+To select a subset of genes that best explains the outcome of samples from the 28wkGA group of the discovery cohort, we used the following four criteria: 1) the p-values from DESeq2, 2) the p-values from edgeR, 3) AIC, and 4) AUC from univariable logistic regressions. Then we selected the top 1% genes for each category (i.e. 151 genes of the lowest p-values from DESeq2 and edgeR, 151 genes having the lowest AIC, and 151 genes having the highest AUC) and constructed a Venn diagram using ggvenn (v0.1.0) R package (52). We selected a total of 17 genes satisfying all the four criteria (i.e. the intersection) and constructed a gene expression matrix (i.e. the 17 genes across the samples from the 28wkGA group of the discovery cohort) using the z-score.
+
+```{r set-core-deg}
+#| label: lst-set-core-deg
+#| lst-label: lst-set-core-deg
+#| eval: false
+#| code-summary: Code to find the core DEGs
+#| lst-cap: Code to find the core DEGs
+venn.top1pctZ<-list(`DESeq2`=dl.resLFC[["28wk"]][order(pvalue)][1:151]$gene_id,
+                  `edgeR`=dl.res.edgeR[["28wk"]][order(PValue)][1:151]$gene_id,
+                `AUC`=dl.logregZ[["28wk"]][order(-auc)][1:151]$gene_id,
+                `AIC`=dl.logregZ[["28wk"]][order(AIC)][1:151]$gene_id
+                )
+
+# the union of all
+dt.venn.top1pctZ<-lapply(names(venn.top1pctZ), function(i) data.table(i,venn.top1pctZ[[i]])) %>% 
+  rbindlist %>% 
+  dcast.data.table(V2~i, fun=length)
+setnames(dt.venn.top1pctZ,"V2","Gene")
+top1pct.genesZ<-dt.venn.top1pctZ[AIC==1 & AUC==1 & DESeq2==1 & edgeR==1]$Gene
+core17 <- top1pct.genesZ # used in 5-fold CV
+```
+
+The Venn diagram for the 17 core DEGs is shown in @sec-fig2c.

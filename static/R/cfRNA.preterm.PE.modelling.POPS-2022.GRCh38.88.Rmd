@@ -1,0 +1,798 @@
+---
+title: "Differentially expressed genes in the maternal circulation: preterm PE"
+subtitle: "preliminary analysis of illumina cfRNA plasma RNA-Seq data"
+author: |
+  | [Sung Gong](https://www.obgyn.cam.ac.uk/staff/research-staff/sung-gong/){target="_blank"}
+institute: |
+  | Department of Obstetrics & Gynaecology
+  | University of Cambridge
+#date: "`r Sys.time()`"
+date: "2023-05-12"
+output: 
+    #beamer_presentation:
+    binb::metropolis:
+        slide_level: 2 
+        toc: false
+        fig_caption: true
+        keep_tex: false
+fontsize: 10pt
+classoption: aspectratio=149
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{xcolor}
+tables: true
+params:
+    disease: PE
+    type: preterm
+    salmonm: Salmon
+    width: 60
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+  #rmarkdown::render("cfRNA.preterm.PE.modelling.POPS-2022.GRCh38.88.Rmd")
+  knitr::opts_chunk$set(cache=TRUE, echo = FALSE, message=FALSE, warning=FALSE) # with caching
+
+  #options(width = params$width) # only for beamer output
+  #my.type=params$type; my.salmon=params$salmon;
+  my.disease="PE"; my.type="preterm"; my.salmon="Salmon"; my.salmon.index="POPS-2022.GRCh38.88"
+  my.slx<-"SLX-ILM-Plasma2021.Homo_sapiens.v1"
+
+  # filters
+  minCPM=0.1; minRead=10; minFreq=0.1; minFC=1.2
+
+  # which p.adjust methods?
+  adjust.methods=c(`Benjamini & Yekutieli`="BY",
+              `Benjamini & Hochberg`="BH",
+              `Bonferroni`="bonferroni")
+
+  source("libs/local.R") # global settings & functions 
+  source("libs/graphic.R") # Sung's graphic function
+
+  library(DESeq2)
+  library(edgeR)
+  library("BiocParallel")
+  register(MulticoreParam(12))
+
+  dt.foo<-data.table(`files`=system(paste0("ls ", "~/results/",my.slx,"/",my.salmon,"/",my.salmon.index,"/*/quant.sf"), intern=T))
+  dt.foo[,names:=tstrsplit(files,"/",keep=8)]
+  dt.colDataAll<-merge(dt.foo,dt.samples,by.x="names",by.y="SampleID") # n=755
+
+  # pre-term
+  dt.colData<-dt.colDataAll[Type==my.type] # n=279
+  #dt.colData[grepl("-b$",names)] # CX (CX-b): both failed; HQ (HQ-b): only HQ-b passed QC according to illumina
+  dt.colData<-dt.colData[!names %in% c("GS-59-CX-b","GS-179-HQ")] # remove these two samples (n=277)
+  li.GA<-split(dt.colData, dt.colData$GA)
+
+  my.dds.RData<-paste0("RData/dds.",my.type,".",my.salmon.index,".RData")
+```
+
+```{r init_dds1, eval=F}
+  if(file.exists(my.dds.RData)){
+    load(my.dds.RData)
+    message("loading dds...")
+  }else{
+    # re-constructed transcripome annotation
+    if(grepl("POPS",my.salmon.index)){
+      # make either `linkedTxome` or `tximeta` at gene-level using `tx2gene`
+      # 1. linkedTxome (gse will be labelled as XLOC_xx)
+      # NB, PSG families were re-constructed into one gene (XLOC_02968)
+      # so this approach abandoned
+      if(F){
+        indexDir<-"~/data/Salmon/transcriptome_index/Homo_sapiens/Ensembl/GRCh38/POPS-2022.GRCh38.88.Novel.Known.Freq.0.1.TPM.0.1.tr.reconstruction.decoy.idx"
+        fastaFTP<-"~/results/RNA-Seq/Placentome/gffcompare/POPS-2022/POPS-Placenta-Transcriptome/POPS-2022.GRCh38.88.Novel.Known.Freq.0.1.TPM.0.1.tr.reconstruction.gffread.gtf.fa"
+        gtfPath<-"~/results/RNA-Seq/Placentome/gffcompare/POPS-2022/POPS-Placenta-Transcriptome/POPS-2022.GRCh38.88.Novel.Known.Freq.0.1.TPM.0.1.tr.reconstruction.gffread.gtf"
+
+        makeLinkedTxome(indexDir=indexDir, source="LocalEnsembl", organism="Homo sapiens",
+                    release="POPS-2022", genome="GRCh38", fasta=fastaFTP, gtf=gtfPath)
+
+        #jsonFile<-"~/data/Salmon/transcriptome_index/Homo_sapiens/Ensembl/GRCh38/POPS-2022.GRCh38.88.Novel.Known.Freq.0.1.TPM.0.1.tr.reconstruction.decoy.json"
+        #makeLinkedTxome(indexDir=indexDir, source="LocalEnsembl", organism="Homo sapiens",
+        #             release="POPS-2022", genome="GRCh38", fasta=fastaFTP, gtf=gtfPath, write=FALSE,jsonFile=jsonFile)
+      }
+
+      # 2. tximeta via tx2gene (gse will be labelled as normal gene names)
+      # 36wk dataset excluded from the beginning
+      #se<-tximeta::tximeta(dt.colData[GA!="36wk"]) # tx level
+      gse<-tximeta::tximeta(dt.colData[GA!="36wk"],skipMeta=T,tx2gene=dt.tx2gene[,.(transcript_id,gene_id)],txOut=F) # gene level (n=25045 vs 25115) ??
+    }else{ # reference annotation
+      #li.salmon<-prep_salmon(dt.colData)
+      se<-tximeta::tximeta(dt.colData[GA!="36wk"]) # tx level
+      gse<- summarizeToGene(se)
+
+      #my.se.RData<-paste0("RData/se.",my.type,".",my.salmon.index,".RData")
+      #save(se, gse,file=my.se.RData)
+    }
+
+    # set up `dds` at gene-level
+    my.design <- formula(~ Batch + GA + Sex + Condition) 		# isa 'formula'
+    dds <- DESeqDataSet(se=gse, design=my.design) 
+
+    #dds %>% design
+    #dds %>% resultsNames # no results yet
+
+    dds$Group<-factor(paste0(dds$GA,dds$Condition)) # add 'Group'
+    #design(dds) <- formula(~ Sex + Group) 		# isa 'formula'
+    design(dds) <- formula(~ Batch + Sex + Group) 		# isa 'formula'
+
+    #
+    dds<- DESeq(dds, parallel=TRUE) # isa 'DESeqDataSet'
+    save(dds,file=my.dds.RData)
+  }
+
+  if(F){
+    #
+    dim(dds) # 25045 genes x  221 samples
+    coef(dds) %>% colnames
+    dds %>% resultsNames
+
+    #
+    mcols(mcols(dds))[1:5,]  #%>% data.frame %>% data.table
+    mcols(mcols(dds),use.names=T)[1:5,]  #%>% data.frame %>% data.table
+    dt.mcols<-data.table(`names`=colnames(mcols(dds)), mcols(mcols(dds), use.names=TRUE) %>% data.frame)
+    dt.mcols[1:20]
+
+    #
+    colnames(rowData(dds))
+    colnames(rowData(dds))[sapply(rowData(dds)[1,],class)=="logical"]
+    grepl("lier", colnames(rowData(dds)))
+
+    rownames(dds)[!is.na(rowData(dds)[,"dispOutlier"]) & rowData(dds)[,"dispOutlier"]]
+    rownames(dds)[!is.na(rowData(dds)[,"replace"]) & rowData(dds)[,"replace"]]
+    rownames(dds)[!is.na(rowData(dds)[,"betaConv"]) & !rowData(dds)[,"betaConv"]]
+  }
+
+```
+
+```{r init_res1}
+  # only `dds` needed  (see above)
+  ###########################################
+  ## WF2: Group analysis with some filters ##
+  ## at leat 10 reads for at leat 10 samples 
+  ## e.g. 36wkCase - 36wkControl
+  ###########################################
+  if(!exists('dds')){load(my.dds.RData)} # see above
+
+  if(!exists('dds.f')){
+    # Filter1 - minRead (or minCpm) & minFreq
+    #keep <- rowSums(fpm(dds) >= minCPM) >= ncol(dds)*minFreq # at leat 0.1 CPM for at leat 10 % of the samples 
+    keep <- rowSums(counts(dds) >= minRead) >= ncol(dds)*minFreq # at leat 10 reads for at leat 10  % of the samples 
+    dds.f<- DESeq(dds[keep,], parallel=TRUE) # isa 'DESeqDataSet'
+    #dds.f<- DESeq(dds[keep,], parallel=TRUE, minReplicatesForReplace=Inf) # isa 'DESeqDataSet'
+    #plotDispEsts(dds.f)
+
+    dim(dds.f) # 15380 x 221
+  }
+
+  if(!exists('dds.f2')){
+    # remove dispOutlier genes
+    keep2<-!is.na(rowData(dds.f)[,"dispOutlier"]) & !rowData(dds.f)[,"dispOutlier"]
+    #rownames(dds.f)[!keep2] # genes of dispOutlier
+    dds.f2<- DESeq(dds.f[keep2], parallel=T)
+    #dds.f2<- DESeq(dds.f[keep2], parallel=T, minReplicatesForReplace=Inf)
+
+    dim(dds.f2) # 15150 x 221
+  }
+
+  if(FALSE){
+    # dds.f
+    rownames(dds.f)[!is.na(rowData(dds.f)[,"replace"]) & rowData(dds.f)[,"replace"]]
+    rownames(dds.f)[!is.na(rowData(dds.f)[,"dispOutlier"]) & rowData(dds.f)[,"dispOutlier"]]
+    rownames(dds.f)[!is.na(rowData(dds.f)[,"betaConv"]) & !rowData(dds.f)[,"betaConv"]]
+
+    # dds.f2
+    keep3<-!is.na(rowData(dds.f2)[,"dispOutlier"]) & !rowData(dds.f2)[,"dispOutlier"]
+    rownames(dds.f2)[!keep3] # genes of dispOutlier
+
+    rownames(dds.f2)[!is.na(rowData(dds.f2)[,"replace"]) & rowData(dds.f2)[,"replace"]]
+    rownames(dds.f2)[!is.na(rowData(dds.f2)[,"dispOutlier"]) & rowData(dds.f2)[,"dispOutlier"]]
+    rownames(dds.f2)[!is.na(rowData(dds.f2)[,"betaConv"]) & !rowData(dds.f2)[,"betaConv"]]
+  }
+
+  my.dl.resLFC.RData<-paste0("RData/dl.resLFC.",my.type,".",my.salmon.index,".RData")
+  if(file.exists(my.dl.resLFC.RData)){
+    load(my.dl.resLFC.RData)
+  }else{
+    # apply shink
+    li.resLFC<-lapply(names(li.GA)[1:3],function(my.GA){
+      my.res<-results(dds.f2, 
+              #alpha=.05, # by default independant filtering at FDR (alpha) 0.1 (10%) 
+              independentFiltering=FALSE,
+              lfcThreshold=log2(minFC), 
+              contrast=c("Group",paste0(my.GA,c("Case","Control"))),
+              parallel=TRUE)  
+      lfcShrink(dds.f2, 
+                #contrast=c("Group",paste0(my.GA,c("Case","Control"))), # not necessary for 'ashr'
+                res=my.res, #li.res[[my.GA]],
+                lfcThreshold=log2(minFC), # not applicable for 'asher' 
+                type="ashr",
+                parallel=TRUE)  
+    })
+    names(li.resLFC)<-names(li.GA)[1:3]
+
+    dl.resLFC<-lapply(li.resLFC, function(i)
+      data.table(`gene_id`=rownames(i), as.data.frame(i))[order(pvalue)][,`:=`("BH"=p.adjust(pvalue,"BH"),"BY"=p.adjust(pvalue,"BY"),"bf"=p.adjust(pvalue,"bonferroni"))]
+    )
+    save(dl.resLFC, file=my.dl.resLFC.RData)
+    fwrite(dl.resLFC[["28wk"]], file=paste0("data/DEG.DSeq2.28wk.",my.type,".",my.salmon.index,".csv"))
+  }
+
+```
+
+```{r init_res3, eval=F}
+  # only `dds` needed (see above)
+  ##################################
+  ## WF3: DESeq2 separately by GA ##
+  ## the dataset were splitted    ##
+  ##################################
+  if(!exists('dds')){load(my.dds.RData)} # see above
+
+  my.dl.resLFC3.RData<-paste0("RData/dl.resLFC3.",my.type,".",my.salmon.index,".RData")
+  if(file.exists(my.dl.resLFC3.RData)){
+    load(my.dl.resLFC3.RData)
+  }else{
+    keep <- rowSums(counts(dds) >= minRead) >= ncol(dds)*minFreq # at leat 10 reads for at leat 10  % of the samples 
+    li.dds<-lapply(li.GA[1:3],function(my.colData){
+            # apply filter 
+            dds.ga<-dds[keep,my.colData$names]
+            design(dds.ga) <- formula(~ Batch + Sex + Condition) 		# NB, no GA
+            dds.ga<-DESeq(dds.ga, parallel=TRUE) # isa 'DESeqDataSet'
+
+            #keep2.ga<-!is.na(rowData(dds.ga)[,"dispOutlier"]) & !rowData(dds.ga)[,"dispOutlier"]
+            #keep2.ga<-!is.na(rowData(dds.ga)[,"replace"]) & !rowData(dds.ga)[,"replace"]
+            keep2.ga<-!is.na(rowData(dds.ga)[,"dispOutlier"]) & !rowData(dds.ga)[,"dispOutlier"] & !is.na(rowData(dds.ga)[,"replace"]) & !rowData(dds.ga)[,"replace"]
+            #rownames(dds.ga)[!keep2.ga] # genes of dispOutlier
+            dds.ga2<- DESeq(dds.ga[keep2.ga], parallel=T)
+    })
+    my.li.dds.RData<-paste0("RData/li.dds.",my.type,".",my.salmon.index,".RData")
+    save(li.dds,file=my.li.dds.RData)
+
+    li.resLFC3<-lapply(li.dds,function(my.dds){
+              my.res3<-results(my.dds, 
+              #        #alpha=.05, # by default independant filtering at FDR (alpha) 0.1 (10%) ,
+                      independentFiltering=FALSE,
+                      lfcThreshold=log2(minFC), 
+                      contrast=c("Condition","Case","Control"),
+                      parallel=TRUE)  
+
+              # if `res` not provides , it will be generated internally
+              my.resLFC3<-lfcShrink(my.dds, 
+                        res=my.res3,
+                        lfcThreshold=log2(minFC), # only for normal or apeglm 
+                        coef="Condition_Case_vs_Control",
+                        #type="apeglm", #default (svalue will be returned)
+                        type="ashr",
+                        parallel=TRUE)  
+    })
+
+    dl.resLFC3<-lapply(li.resLFC3, function(i)
+      #data.table(cbind(as.data.frame(rowData(li.dds[[1]])[,c("gene_id","symbol","gene_biotype","allZero")]), i)) 
+      data.table(`gene_id`=rownames(i), as.data.frame(i))[order(pvalue)]
+    )
+    save(dl.resLFC3, file=my.dl.resLFC3.RData)
+  }
+```
+
+```{r init_edger, eval=F}
+  if(F){
+  # DO NOT DO THIS - USE `makeDGEList` AS ABOVE
+    d<-DGEList(counts=counts(dds.f2,normalize=F),
+              samples=colData(dds.f2),
+              group=colData(dds.f2)$Group)
+  }
+
+  # assumes `gse` - see above
+  if(F){
+    d<-tximeta::makeDGEList(gse)
+    d$samples<-cbind(d$samples,colData(gse))
+    d$samples$group<-factor(paste0(d$samples$GA,d$samples$Condition)) # add 'group'
+    d<-calcNormFactors(d,method="TMM") 
+  }
+
+  #
+  gse2 <-gse[rownames(dds.f2),]
+  d2<-tximeta::makeDGEList(gse2)
+  d2$samples<-cbind(d2$samples,colData(gse2))
+  d2$samples$group<-factor(paste0(d2$samples$GA,d2$samples$Condition)) # add 'group'
+  d2$samples$GA<-droplevels(d2$samples$GA) # 36wk removed
+  d2$samples$Batch<-droplevels(d2$samples$Batch) # some batches removed
+
+  # additional filter
+  #keep <- filterByExpr(d2)
+  #keep %>% table # FALSE:13, TRUE:15137
+  #d2<-d2[keep,]
+
+  # TMM normalisation (default). It adds `norm.factors` d2$samples
+  # NB, we have `offsets`, which take precedence over lib.size and norm.factors
+  d2<-calcNormFactors(d2,method="TMM") 
+                                      
+  plotMD(d2)
+  plotMDS(d2, method="bcv")
+  plotMDS(d2, col=as.numeric(d2$samples$GA))
+  plotMDS(d2, col=as.numeric(d2$samples$Condition))
+
+  # design
+  # my.design <- model.matrix(~ Batch + Sex + group, data=d2$samples) 		# isa 'matrix'
+  #my.design <- model.matrix(~ 0 + group,  data=d2$samples) 		# isa 'matrix'
+  my.design <- model.matrix(~ 0 + group + Sex + Batch , data=d2$samples) 		# isa 'matrix'
+  my.design[1:5,]
+  (my.contrasts <- makeContrasts(`12wk`=group12wkCase-group12wkControl, 
+                                `20wk`=group20wkCase-group20wkControl, 
+                                `28wk`=group28wkCase-group28wkControl, 
+                                levels=my.design)
+  )
+
+  # dispersion
+	#dp2 = estimateDisp(d2, design=my.design, verbose=T)
+	dp2 = estimateGLMCommonDisp(d2, design=my.design, verbose=T) 
+	dp2 = estimateGLMTrendedDisp(dp2, design=my.design, verbose=T)
+	dp2 = estimateGLMTagwiseDisp(dp2, design=my.design)
+
+  plotMDS(dp2)
+  plotBCV(dp2)
+
+  # fit
+	#f = glmFit(dp2, design=my.design) # 
+	f = glmQLFit(dp2, design=my.design) # QL(Quasi-like) pipeline
+  colnames(f)
+  f$coefficients %>% head
+
+  plotMD(f)
+  plotQLDisp(f)
+
+  # get the edgeR results
+  li.res.edgeR<-lapply(names(li.GA)[1:3], function(i){
+    #te <- glmLRT(f, contrast=my.contrasts[,i]) # LR test
+    #te <- glmQLFTest(f, contrast=my.contrasts[,i]) # QL F-test
+    #te <- glmTreat(f, contrast=my.contrasts[,i], lfc=log2(1.2))
+    te <- glmTreat(f, contrast=my.contrasts[,i], lfc=log2(minFC))
+	  topTags(te, n=nrow(te))    # default sort by pvalue
+  })
+  names(li.res.edgeR) <-names(li.GA)[1:3] 
+
+  dl.res.edgeR<-lapply(li.res.edgeR, function(i)
+    data.table(`gene_id`=rownames(i),i$table)[order(PValue)][,`:=`("BH"=p.adjust(PValue,"BH"),"BY"=p.adjust(PValue,"BY"),"bf"=p.adjust(PValue,"bonferroni"))]
+  )
+  lapply(dl.res.edgeR, function(i) i[FDR<0.05] %>% nrow)
+
+  dl.res.edgeR[["28wk"]][FDR<0.05]
+  dl.res.edgeR[["28wk"]][FDR<0.05 & (logFC>log2(minFC) | logFC<log2(minFC))]
+  dl.res.edgeR[["28wk"]][bf<0.05]
+
+  my.dl.res.edgeR.RData<-paste0("RData/dl.res.edgeR.",my.type,".",my.salmon.index,".RData")
+  save(dl.res.edgeR, file=my.dl.res.edgeR.RData)
+  fwrite(dl.res.edgeR[["28wk"]], file=paste0("data/DEG.edgeR.28wk.",my.type,".",my.salmon.index,".csv"))
+
+  ##################################################################
+  # different across GA (e.g. ANOVA-like test more than >2 groups) #
+  ##################################################################
+  te.ga<- glmQLFTest(f, contrast=my.contrasts) # QL F-test
+  tt.ga<-topTags(te.ga, n=nrow(te.ga))
+  dt.ga<-data.table(`gene_id`=rownames(tt.ga),tt.ga$table)
+  dt.ga[FDR<0.05]
+
+  # foo
+  te.foo<- glmQLFTest(f) # , contrast=my.contrasts) # QL F-test
+  tt.foo<-topTags(te.foo)
+```
+
+```{r load_dl_res_edgeR}
+  my.dl.res.edgeR.RData<-paste0("RData/dl.res.edgeR.",my.type,".",my.salmon.index,".RData")
+  load(my.dl.res.edgeR.RData)
+  #dl.res.edgeR<-lapply(dl.res.edgeR, function(i) i[order(PValue)][,`:=`("BH"=p.adjust(PValue,"BH"),"BY"=p.adjust(PValue,"BY"))]) # see above
+```
+
+```{r dt-cnt-cpm, eval=F}
+  # use those genes in dds.f2
+  my.cnt.RData<-paste0("RData/dt.count.",my.type,".",my.salmon.index,".RData")
+  if(file.exists(my.cnt.RData)){
+    load(my.cnt.RData)
+  }else{
+    dt.count<-merge(
+      data.table(`geneName`=rownames(dds),counts(dds,normalized=T)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="Count"),
+      dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+    )
+
+    #dt.rp.count<-merge(
+    #  data.table(`geneName`=rownames(dds),assays(dds)[["replaceCounts"]]) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="Count"),
+    #  dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+    #)
+
+    # CPM based on DESeq2 `fpm`
+    dt.cpm<-merge(
+      data.table(`geneName`=rownames(dds),fpm(dds)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="CPM"),
+      dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+    )
+
+    dt.tpm<-merge(
+      data.table(`geneName`=rownames(dds), assays(dds)[["abundance"]]) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="TPM"),
+      dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+    )
+
+    # CPM based on edgeR TMM  (NB, d isa "DGEList")
+    dt.cpm2<-merge(
+      data.table(`geneName`=rownames(d),cpm(d)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="CPM"),
+      dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+      )
+
+    save(dt.count, dt.cpm, dt.cpm2, dt.tpm, file=my.cnt.RData)
+  }
+```
+
+```{r dt-cnt-cpm2}
+  # based on genes from dds.f2
+  # CPM based on edgeR TMM  (NB, d isa "DGEList")
+  my.cnt.RData<-paste0("RData/dt.count2.",my.type,".",my.salmon.index,".RData")
+  if(file.exists(my.cnt.RData)){
+    load(my.cnt.RData)
+  }else{
+    dt.count<-merge(
+      data.table(`geneName`=rownames(dds.f2),counts(dds.f2,normalized=T)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="Count"),
+      dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+    )
+
+    # CPM based on DESeq2 `fpm`
+    dt.cpm<-merge(
+      data.table(`geneName`=rownames(dds.f2),fpm(dds.f2)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="CPM"),
+      dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+    )
+
+    dt.tpm<-merge(
+      data.table(`geneName`=rownames(dds.f2), assays(dds.f2)[["abundance"]]) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="TPM"),
+      dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+    )
+
+    # CPM based on edgeR TMM  (NB, d isa "DGEList")
+    dt.cpm2<-merge(
+      data.table(`geneName`=rownames(d2),cpm(d2)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="CPM"),
+      dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+      )
+
+    dt.logcpm2<-merge(
+      data.table(`geneName`=rownames(d2),cpm(d2,log=T)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="logCPM"),
+      dt.samples[Type==my.type,.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+      )
+
+    save(dt.count, dt.cpm, dt.tpm, dt.cpm2, dt.logcpm2, file=my.cnt.RData)
+  }
+```
+
+```{r cpm_zscore1}
+  my.cpmZ.RData<-paste0("RData/dt.cpmZ.",my.type,".",my.salmon.index,".RData")
+  if(file.exists(my.cpmZ.RData)){
+    load(my.cpmZ.RData)
+  }else{
+    dt.cpmZ=merge(dt.logcpm2,
+                  dt.logcpm2[Condition=="Control",.(Mean=mean(logCPM),SD=sd(logCPM)),.(GA,geneName)]# [,.N,GA]
+          ,by=c("GA","geneName")
+          )[,.(Group,GA,Condition,SampleID,geneName,logCPM,logCPMZ=(logCPM-Mean)/SD)]
+    save(dt.cpmZ,file=my.cpmZ.RData)
+  }
+```
+
+# Previously
+
+## The workflow
+```{r work-flow1a, fig.cap="cfRNA quantification work flow"}
+# dot ~/Devel/Rmd/Plasma-RNA-2021/cfRNA_quant_workflow2b.gv -Tpdf -o ~/Devel/Rmd/Plasma-RNA-2021/cfRNA_quant_workflow2b.pdf
+knitr::include_graphics("cfRNA_quant_workflow2b.pdf")
+```
+
+## The samples (pre-term)
+```{r samples_meta}
+  xtabs(~Condition+GA, data=dt.samples[Type=="preterm",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=277 samples
+  #xtabs(~Condition+GA,dt.samples[Type=="preterm"]) %>% addmargins # this is for sequencing data (n=2 were sequenced twice) - see below
+  if(F){
+    dt.samples[Type=="preterm"] # n=279
+    dt.samples[Type=="preterm",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)] # n=277 samples
+    dt.samples[Type=="preterm",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)][N>1]
+
+    dt.samples[Type=="preterm" & grepl("-b$",SampleID)] #
+  }
+
+  #
+  #xtabs(~pn_female+GA, data=dt.samples[Type=="term",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=475 samples
+  #xtabs(~pn_female+GA, data=dt.samples[Type=="preterm",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=277 samples
+  #xtabs(~pn_female+Condition+GA, data=dt.samples[Type=="preterm",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=277 samples
+```
+
+## Methods
++ Quantification
+  + `Salmon (SA mode)` 
+  + `r my.salmon.index` transcriptome + decoy
++ DEGs identified using `DESeq2` and `edgeR`
+  + Genes having >=`r minRead` reads from >=`r minFreq*100`% of samples 
+  + Genes of dispersion outliers removed
+  + `r dds.f2 %>% nrow` final genes were considered
+  + FC >=`r (minFC-1)*100`% increase or decrease 
+  + 5% FDR 
+
+```{r pca1, eval=F, fig.cap="PCA plot of preterm dataset"}
+## PCA
+  ## Exploratory Analysis
+  #vsd<-vst(dds)
+  #vsd<-vst(dds.f)
+  vsd<-vst(dds.f2, blind=FALSE)
+
+  #plotPCA(vsd, intgroup = c("Condition", "Sex","GA")) + theme_Publication()
+
+  pcaData2<-plotPCA(vsd, intgroup=c("Condition", "Sex", "GA","Batch"),returnData=TRUE) # ntop=500 by default
+  percentVar2 <- round(100 * attr(pcaData2, "percentVar"),1)
+
+  p.pca<-ggplot(pcaData2, aes(PC1, PC2, color=Condition, label=name)) +
+  geom_point(size=3,alpha=.85) +
+  #geom_text(check_overlap=T,col="darkred",hjust=1,vjust=-.2,size=5) +
+  #geom_text(col="darkred",hjust=1,vjust=-.2,size=3) +
+  xlab(paste0("PC1: ",percentVar2[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar2[2],"% variance")) + 
+  geom_vline(xintercept=0,linetype="dashed") +
+  geom_hline(yintercept=0,linetype="dashed") +
+  #ggsci::scale_color_d3() +
+  scale_color_manual(values=cbPalette2) +
+  #ggtitle("variance-stabilising transform") +
+  coord_fixed() + 
+  #facet_grid(Sex~GA) +
+  theme_Publication() + theme(panel.border = element_rect(colour = "black"))
+  print(p.pca)
+```
+
+# Results
+
+## No. of DEG
+```{r child="child-rmd/cfRNA.preterm.PE.modelling.DEG.POPS-2022.GRCh38.88.Rmd"}
+```
+
+```{r child="child-rmd/cfRNA.preterm.PE.modelling.logitTPM.POPS-2022.GRCh38.88.Rmd", eval=F}
+# Univariable logistic regression analysis (using TPM)
+```
+
+# 2022-11-10
+
+# Data transformation 
+
+## The abundance of LEP
+```{r dist-cpm1, fig.cap="The abundance of LEP"}
+  my.gene="LEP"
+
+  p1<-ggplot(dt.tpm[geneName==my.gene], aes(GA, TPM, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge()) +
+    ggsci::scale_color_d3() +
+    theme_Publication() + theme(legend.position=c(.5,.77))
+
+  p2<-ggplot(dt.cpmZ[geneName==my.gene], aes(GA, logCPM, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge()) +
+    ggsci::scale_color_d3() +
+    theme_Publication() + theme(legend.position="none")
+
+  p3<-ggplot(dt.cpmZ[geneName==my.gene], aes(GA, logCPMZ, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge()) +
+    ylab("Z-score") +
+    ggsci::scale_color_d3() +
+    theme_Publication() + theme(legend.position="none")
+
+  cowplot::plot_grid(p1,p2,p3,ncol=3)
+
+```
+
+## The abundance of PAPPA2
+```{r dist-cpm2, fig.cap="The abundance of PAPPA2"}
+  my.gene="PAPPA2"
+
+  p1<-ggplot(dt.tpm[geneName==my.gene], aes(GA, TPM, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge()) +
+    ggsci::scale_color_d3() +
+    theme_Publication() + theme(legend.position=c(.5,.77))
+
+  p2<-ggplot(dt.cpmZ[geneName==my.gene], aes(GA, logCPM, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge()) +
+    ggsci::scale_color_d3() +
+    theme_Publication() + theme(legend.position="none")
+
+  p3<-ggplot(dt.cpmZ[geneName==my.gene], aes(GA, logCPMZ, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge()) +
+    ylab("Z-score") +
+    ggsci::scale_color_d3() +
+    theme_Publication() + theme(legend.position="none")
+
+  cowplot::plot_grid(p1,p2,p3,ncol=3)
+```
+
+## Shapiro-Wilk test
++ Using `r dl.res.edgeR[["28wk"]][BH<0.05]$gene_id %>% length` DEGs based on edgeR
++ P-value>0.01: not significantly different from normal distribution
+```{r shapiro.test1}
+  #dt.shapiro<-lapply(dt.deg.100$gene_id, function(my.gene)
+  dt.shapiro<-lapply(dl.res.edgeR[["28wk"]][BH<0.05]$gene_id, function(my.gene)
+         data.table(Gene=my.gene,
+                    `TPM`=shapiro.test(dt.tpm[geneName==my.gene]$TPM)$p.value,
+                    `logCPM`=shapiro.test(dt.cpmZ[geneName==my.gene]$logCPM)$p.value
+         )) %>% rbindlist
+  dt.shapiro[,"TPM_P>0.01":=ifelse(TPM>0.01,T,F)]
+  dt.shapiro[,"logCPM_P>0.01":=ifelse(logCPM>0.01,T,F)]
+  xtabs(~`TPM_P>0.01`+`logCPM_P>0.01`, data=dt.shapiro) %>% addmargins # n=277 samples
+
+  if(F){
+  my.gene="PAPPA2"
+  shapiro.test(dt.tpm[geneName==my.gene & GA=="28wk"]$TPM)$p.value
+  shapiro.test(dt.cpmZ[geneName==my.gene & GA=="28wk"]$logCPM)$p.value
+
+  dt.shapiro[,"TPM_P>0.05":=ifelse(TPM>0.05,T,F)]
+  dt.shapiro[,"logCPM_P>0.05":=ifelse(logCPM>0.05,T,F)]
+  xtabs(~`TPM_P>0.05`+`logCPM_P>0.05`, data=dt.shapiro) %>% addmargins # n=277 samples
+
+  dt.shapiro[,`:=`("BH_TPM"=p.adjust(TPM,"BH"),"BH_logCPM"=p.adjust(logCPM,"BY"))]
+  dt.shapiro[,"BH_TPM_P>0.01":=ifelse(BH_TPM>0.01,T,F)]
+  dt.shapiro[,"BH_logCPM_P>0.01":=ifelse(BH_logCPM>0.01,T,F)]
+  xtabs(~`BH_TPM_P>0.01`+`BH_logCPM_P>0.01`, data=dt.shapiro) %>% addmargins # n=277 samples
+
+  dt.shapiro[,"BH_TPM_P>0.05":=ifelse(BH_TPM>0.05,T,F)]
+  dt.shapiro[,"BH_logCPM_P>0.05":=ifelse(BH_logCPM>0.05,T,F)]
+  xtabs(~`BH_TPM_P>0.05`+`BH_logCPM_P>0.05`, data=dt.shapiro) %>% addmargins # n=277 samples
+  }
+```
+
+# Univariable logistic regression analysis (using z-score)
+```{r child="static/R/cfRNA.preterm.PE.modelling.logitZ.POPS-2022.GRCh38.88.Rmd"}
+```
+
+## Top 1% DEGs (a total of `r nrow(dt.venn.top1pctZ)` genes)
+```{r top1pct_deg_regz, fig.cap="Top 1% DEGs (AIC & AUC based on z-score)"}
+  ggvenn::ggvenn(venn.top1pctZ,fill_color=rep("grey100",length(venn.top1pctZ)),set_name_size=7,text_size=7,stroke_size=.7,show_percentage=FALSE)
+  #top1pct.genesZ %in% top1pct.genes %>% table
+```
+
+## The workflow 1 - top 1% genes supported by any of the four criteria
+```{r child="child-rmd/cfRNA.preterm.PE.modelling.WF1.POPS-2022.GRCh38.88.Rmd"}
+```
+
+## The workflow 2 - top 1% genes supported by all of the four criteria
+```{r child="child-rmd/cfRNA.preterm.PE.modelling.WF2.POPS-2022.GRCh38.88.Rmd"}
+```
+
+# The Smith Method (TSM)
+```{r child="child-rmd/cfRNA.preterm.PE.modelling.TSM.POPS-2022.GRCh38.88.Rmd"}
+```
+
+# DEG by GA 
+```{r child="child-rmd/cfRNA.preterm.PE.DEG.GA.POPS-2022.GRCh38.88.Rmd"}
+```
+
+# 2022-12-16
+
+## The workflow 3 - top 1% genes (>=LEP) supported by any of the four criteria
+```{r child='child-rmd/'cfRNA.preterm.PE.modelling.WF3.POPS-2022.GRCh38.88.Rmd'}
+```
+
+# Validation
+```{r child='child-rmd/cfRNA.term.PE.validation.POPS-2022.GRCh38.88.Rmd'}
+```
+
+# 2023-1-13
+
+## The workflow 4 - CPM>=LEP & top 1% genes supported by any of the four criteria
+```{r child='child-rmd/cfRNA.preterm.PE.modelling.WF4.POPS-2022.GRCh38.88.Rmd'}
+```
+
+# Validation - preterm 12wk and 20wk
+```{r child='child-rmd/cfRNA.preterm.PE.validation.POPS-2022.GRCh38.88.Rmd'}
+```
+
+# Validation - term PE datasets at 12wk, 20wk, 28wk and 36wk
+```{r child='child-rmd/cfRNA.term.PE.validation2.POPS-2022.GRCh38.88.Rmd'}
+```
+
+# DEG by GA (term)
+```{r child="child-rmd/cfRNA.term.PE.DEG.GA.POPS-2022.GRCh38.88.Rmd"}
+```
+
+# DEG in PE+SGA placenta RNA-Seq
+```{r child="child-rmd/cfRNA.placenta.RNA-Seq.DEG.Rmd"}
+```
+
+# 2023-02-03
+```{r child="child-rmd/cfRNA.term.PE.modelling.logitZ.POPS-2022.GRCh38.88.Rmd"}
+# load ddl.logregZ.term
+## AUC of selected top predictors
+## LPOCV of selected top predictors
+## LEP transcript variants
+```
+
+# Heatmaps of term datasets using key genes
+```{r child="child-rmd/term_17_5_genes_heatmap.Rmd"}
+```
+
+# External validation using Moufarrej Nature 2022
+```{r child="child-rmd/quake.nature2021b.Rmd"}
+```
+
+# External validatioin using Munchel Sci Tr Med 2020 
+```{r child="child-rmd/munchel.sciTrMed2020.Rmd"}
+```
+
+# 2023-02-22
+
+# The abundance of LEP & PAPPA2
+```{r child="child-rmd/LEP.PAPPA2.abundance.Rmd"}
+```
+
+# House keeping genes
+```{r child="child-rmd/house.keeping.genes.Rmd"}
+```
+
+# circRNAs (downsampled to 20M)
+```{r child="child-rmd/circRNA.plasma.Rmd"}
+```
+
+# 2023-03-08
+
+# House-keeping genes (part2)
+```{r child="child-rmd/house.keeping.genes2.Rmd"}
+```
+
+# Detection of 11 circRNAs in PAPPA2 from the plasma cfRNA-Seq
+```{r child="child-rmd/circRNA.plasma.pappa2.Rmd"}
+```
+
+# 2023-03-24
+
+# Correlation plot of house keeping genes
+```{r child="child-rmd/corr.house.keeping.genes.Rmd"}
+```
+
+# circRNAs
+```{r child="child-rmd/circRNA.plasma2.Rmd", eval=F}
+```
+
+```{r child="child-rmd/circRNA.plasma.pappa2_2.Rmd", eval=F}
+```
+
+```{r child="child-rmd/circRNA.plasma.CIRIquant.Rmd"}
+```
+
+```{r child="WF2.extra.bits2.Rmd", eval=F}
+# 2023-05-12
+# done separately
+```
+
+## The End
+```{r session-info,echo=T}
+R.version 
+```
+
+```{r child="rugv.Rmd", eval=F}
+```
+
+```{r child="misc.Rmd", eval=F}
+```
+
+```{r child="pub.figures.Rmd", eval=F}
+```
+
+```{r child="xgboost.Rmd", eval=F}
+```
+
+```{r child="mxnet.cfRNA.POPS.Rmd", eval=F}
+```
+
+```{r child="tensorflow.cfRNA.POPS.Rmd", eval=F}
+```
+
+```{r child="h2o.cfRNA.POPS.Rmd", eval=F}
+```

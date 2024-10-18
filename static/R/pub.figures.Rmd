@@ -1,0 +1,1685 @@
+---
+title: "Differentially expressed genes in the maternal circulation: preterm PE"
+subtitle: "publication quality figures"
+author: |
+  | [Sung Gong](https://www.obgyn.cam.ac.uk/staff/research-staff/sung-gong/){target="_blank"}
+institute: |
+  | Department of Obstetrics & Gynaecology
+  | University of Cambridge
+date: "`r Sys.time()`"
+output: 
+    pdf_document:
+        toc: true
+        fig_caption: true
+        keep_tex: true
+fontsize: 10pt
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{xcolor}
+tables: true
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+  #rmarkdown::render("pub.figures.Rmd")
+  knitr::opts_chunk$set(cache=TRUE, echo = FALSE, message=FALSE, warning=FALSE) # with caching
+
+  library(magrittr)
+  lazyLoad("cfRNA.preterm.PE.modelling.POPS-2022.GRCh38.88_cache/beamer/setup_29fa8d744cc4c7c31d75c30259e529d2")
+  source("libs/local.R") # global settings & functions 
+  source("libs/graphic.R") # Sung's graphic function
+
+  pdf.options(reset = TRUE, onefile = FALSE)
+```
+
+# Figure 1
+```{r fig1}
+# Biorender
+```
+
+## Figure 2A
+```{r fig2.reg.hist.pval, fig.cap="Histogram of p-values"}
+# cfRNA.preterm.PE.modelling.logitZ.POPS-2022.GRCh38.88.Rmd
+# fig2B. histogram of p-values from univariable logistic regression using the 28wk discovery
+
+  load("RData/dl.logregZ.preterm.POPS-2022.GRCh38.88.RData")
+
+  sapply(dl.logregZ, function(DT) DT[padj.BH<0.05] %>% nrow)
+
+  #ks.test(dl.logregZ[["28wk"]]$pval,"punif",0,1) #,exact=T)
+
+  p2.hist<-ggplot(dl.logregZ[["28wk"]],aes(pval)) +
+         geom_histogram(aes(y=..density..),alpha=.8,bins=40) +
+         #geom_density(alpha=.5) +
+         xlab("P-value") + ylab("Density") +
+         annotate("text",x=0.48,y=10,label="P-value < 2.2e-16",size=6) +
+         theme_Publication()
+  print(p2.hist)
+```
+
+
+## Figure 2B
+```{r fig2.vol28.edgeR.pval, fig.cap="Volcano plot 28wk (edgeR)"}
+  load("RData/dl.res.edgeR.preterm.POPS-2022.GRCh38.88.RData") # edgeR result
+  dl.res.edgeR[["28wk"]]
+
+## cfRNA.preterm.PE.modelling.DEG.POPS-2022.GRCh38.88.Rmd
+## fig1A. Volcano (28wk) - edgeR (using original p-values)
+  res.edger<-dl.res.edgeR[["28wk"]]
+
+  (dt.label<-
+  rbind(
+  res.edger[order(BH)][BH<0.05,.SD[c(1:6)]],
+  res.edger[order(-abs(logFC))][,.SD[c(1:2)]]
+  ) %>% unique)
+
+  p2.vol<-ggplot(res.edger, aes(logFC, -log10(PValue))) + 
+        geom_point(data=res.edger[BH>0.05],size=2, col="grey90", alpha=.6) +
+        geom_point(data=res.edger[BH<=0.05], size=2,col="grey20",alpha=.8) +
+        ylab("-log10(P-value)") + xlab("log2(Fold change)") +
+        ggrepel::geom_text_repel(
+                                data=res.edger[order(BH)][BH<0.05,.SD[c(1:6)]] # dt.label
+                                ,aes(label=gene_id),
+                                box.padding = 0.6, max.overlaps = Inf,
+                                #direction='y',
+                                #nudge_y=1,
+                                size=5) +
+        theme_Publication()
+  print(p2.vol)
+```
+
+## Figure 2C
+```{r fig2.venn, fig.cap="Venn diagram of top 1% DEG by 4 selection criteria"}
+# cfRNA.preterm.PE.modelling.logitZ.POPS-2022.GRCh38.88.Rmd
+  load("RData/dl.resLFC.preterm.POPS-2022.GRCh38.88.RData")
+
+  venn.top1pctZ<-list(
+                   `edgeR`=dl.res.edgeR[["28wk"]][order(PValue)][1:151]$gene_id,
+                   `DESeq2`=dl.resLFC[["28wk"]][order(pvalue)][1:151]$gene_id,
+                  `AUC`=dl.logregZ[["28wk"]][order(-auc)][1:151]$gene_id,
+                  `AIC`=dl.logregZ[["28wk"]][order(AIC)][1:151]$gene_id
+                  )
+  p2.venn<-ggvenn::ggvenn(venn.top1pctZ,fill_color=rep("grey100",length(venn.top1pctZ)),set_name_size=5.6,text_size=6,stroke_size=.7,show_percentage=FALSE)
+  print(p2.venn)
+
+  dt.venn.top1pctZ<-lapply(names(venn.top1pctZ), function(i) data.table(i,venn.top1pctZ[[i]])) %>% rbindlist %>% dcast.data.table(V2~i, fun=length)
+  setnames(dt.venn.top1pctZ,"V2","Gene")
+  top1pct.genesZ<-dt.venn.top1pctZ[AIC==1 & AUC==1 & DESeq2==1 & edgeR==1]$Gene
+```
+
+## Figure 2D
+```{r fig2.heatmap, fig.cap="Heatmap of the 17 core DEGs at 28wk"}
+## Heatmap of the 17 core genes
+# cfRNA.preterm.PE.modelling.WF2.POPS-2022.GRCh38.88.Rmd 
+  load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData")
+
+  #top1pct.genesZ # the 17 core DEGs
+  this.mat<-dt.cpmZ[GA=="28wk" & geneName %in% top1pct.genesZ,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") # %>% as.data.frame
+  #pheatmap::pheatmap(t(this.mat[,top1pct.genesZ]))
+
+  p.anno<-HeatmapAnnotation(outcome=ifelse(this.mat[,"y"]==1,"case","control"),
+                            which="column", 
+                            col=list(outcome=c(`case`="grey10",`control`="grey90"))
+                        )
+  p.main<-ComplexHeatmap::Heatmap(t(this.mat[,top1pct.genesZ]),
+                        name='z-score',
+                        row_names_gp=gpar(fontsize=10),
+                        show_column_names =F,
+                        #col=circlize::colorRamp2(c(min(this.mat,na.rm=T), 0, max(this.mat,na.rm=T)), c("blue", "white", "red")),
+                        top_annotation=p.anno
+                        )
+  p2.heat = grid.grabExpr(ComplexHeatmap::draw(p.main,merge_legend=T))
+  print(p2.heat)
+```
+
+## Figure 2A-D
+```{r fig1.merge, eval=F}
+## p2.vol
+## p2.hist
+## p2.venn
+## p2.heatmap
+  pdf(file="Figures/cfRNA.Fig2.pdf", width=11, height=9,title="Fig2: the 17 core genes")
+  cowplot::plot_grid(p2.hist, p2.vol, p2.venn, p2.heat, nrow=2,labels="AUTO",label_size=27,align="hv",axis='l')
+  dev.off()
+
+  tiff(file="Figures/cfRNA.Fig2.tiff", width=1100, height=900,title="Fig2: the 17 core genes")
+  cowplot::plot_grid(p2.hist, p2.vol, p2.venn, p2.heat, nrow=2,labels="AUTO",label_size=27,align="hv",axis='l')
+  dev.off()
+```
+
+# Figure 3 
+
+## Figure 3A - KCV
+```{r fig3A.kcv, fig.cap="Fig3A"}
+  load("RData/dl.kcv.result.core17.RData")
+  #########################################################
+  # Reulst of 11 ML methods based on 5-fold CV with 5 rep #
+  #########################################################
+  (dt.foo<-lapply(dl.kcv.result, function(DT) DT[,.(.N, 
+      mean_AUC_test=mean(AUC_test), mean_AUC_test_lo=mean(AUC_test_lo), mean_AUC_test_hi=mean(AUC_test_hi)
+      ),method][,Rank:=frank(-mean_AUC_test)][order(Rank)]
+  ) %>% rbindlist )
+  (dt.bar<-dt.foo[,.(.N,N_test=sum(N),rankSum=sum(Rank),meanRank=sum(Rank)/5, #F2-F6
+            meanAUC=mean(mean_AUC_test)/100,
+            meanAUC_lo=mean(mean_AUC_test_lo)/100,
+            meanAUC_hi=mean(mean_AUC_test_hi)/100)
+  ,method][order(rankSum)])
+
+  dt.bar[,.(`Method`=method,`Rank Sum`=rankSum,`Mean Rank`=meanRank,`Mean AUC`=meanAUC,`AUC Range`="")] %>%
+  kbl(booktabs=F, digits=4) %>%
+  kable_styling(latex_options = c("basic"),full_width=F,font_size=10) %>%
+  #kable_styling(bootstrap_options = c("condensed"), full_width = F, font_size=10) %>%
+  column_spec(5, image = spec_pointrange(
+    x = dt.bar$meanAUC,
+    xmin = dt.bar$meanAUC_lo,
+    xmax = dt.bar$meanAUC_hi,
+    cex= 0.6,
+    vline = .80,
+    height=50)
+  ) %>% save_kable("Figures/cfRNA.Fig2.KCV.table.pdf")
+
+  ##
+  ##
+  (dt.foo<-lapply(names(dl.kcv.result), function(NF) 
+      dl.kcv.result[[NF]][,.(NF=substr(NF,2,3),.N, 
+      mean_AUC=mean(AUC_test)/100, mean_AUC_lo=mean(AUC_test_lo)/100, mean_AUC_hi=mean(AUC_test_hi)/100
+      ),method][,Rank:=frank(-mean_AUC)][order(Rank)]
+  ) %>% rbindlist )
+  dt.bar[,.(Method=method,`Rank sum`=rankSum, `Mean rank`=meanRank,round(meanAUC,3),round(meanAUC_lo,3),round(meanAUC_hi,3))][,.(Method,paste(V4,"(",V5,"-",V6,")"))]
+  (dt.baz<-dt.bar[,.(Method=method,`Rank sum`=rankSum, `Mean rank`=meanRank,`Mean AUC (95% CI)`=paste0(sprintf("%.3f",meanAUC)," (",round(meanAUC_lo,3)," - ",round(meanAUC_hi,3),")"))])
+
+  library(ggpmisc)
+
+  p.kcv<-ggplot(dt.foo, aes(method, mean_AUC)) +
+    geom_pointrange(aes(col=NF, ymin=mean_AUC_lo, ymax=mean_AUC_hi),position=position_dodge(width=0.7), size=.9,alpha=.8) +
+    scale_x_discrete(limits=dt.bar$method) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ggsci::scale_color_jco(name="Number of mRNA in the training model") +
+    labs(x="ML Method",y="The mean AUC \nacross 5-fold CV with 5 repetitions") +
+    geom_table(data=data.table(x="LASSO", y=0.03, tb=list(dt.baz)),aes(x=x,y=y, label=tb), size=5, table.theme = ttheme_gtlight ) +
+    theme_Publication() +
+    theme(legend.position="top", 
+        legend.key = element_rect(fill = "transparent"),
+        legend.background = element_rect(fill='transparent', linetype="solid",color="black",size=.2),
+        legend.box.background = element_rect(fill='transparent'),
+        axis.text.x = element_text(angle = 45, hjust=1, size=rel(1)))
+```
+
+## Figure 3B - final training model
+```{r fig3B.final.model}
+  load("RData/dl.final.result.core17.RData")
+  load("RData/dl.enet.result.core17.RData")
+  load("RData/dt.best.result.core17.RData") # dt.best.result
+ library(ggbreak) 
+
+  ###############################################
+  # The final training models from LASSO & ENet #
+  ###############################################
+  (dt.enet.tr<-lapply(names(dl.final.result), function(FN){
+    dl.final.result[[FN]][grepl("ENet",methods) & fold=="28wk(preterm)",.(Method="ENet",FN=FN,predictor,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100,LPOCV=LPOCV_test/100,LPOCV_lo=LPOCV_test_lo/100,LPOCV_hi=LPOCV_test_hi/100)]
+  }) %>% rbindlist)
+  (dt.lasso.tr<-lapply(names(dl.final.result), function(FN){
+    dl.final.result[[FN]][grepl("LASSO",methods) & fold=="28wk(preterm)",.(Method="LASSO",FN=FN,predictor,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100,LPOCV=LPOCV_test/100,LPOCV_lo=LPOCV_test_lo/100,LPOCV_hi=LPOCV_test_hi/100)]
+  }) %>% rbindlist)
+  dt.final.tr<-rbind(dt.enet.tr, dt.lasso.tr)
+
+  dt.final.tr[,.(Method,`Selected features`=predictor,AUC,`AUC Range`="",LPOCV,`LPOCV Range`="")]
+
+  if(F){
+    dt.final.tr[,.(Method,`Selected features`=predictor,AUC,`AUC Range`="",LPOCV,`LPOCV Range`="")] %>%
+    kbl(booktabs=F, digits=4) %>%
+    kable_styling(latex_options = c("basic"),full_width=F,font_size=10) %>%
+    #kable_styling(bootstrap_options = c("condensed"), full_width = F, font_size=10) %>%
+    #collapse_rows(columns = 1) %>% 
+    column_spec(4, image = spec_pointrange(
+      x = dt.final.tr$AUC,
+      xmin = dt.final.tr$AUC_lo,
+      xmax = dt.final.tr$AUC_hi,
+      cex= 0.6,
+      vline = .90,
+      height=50)) %>% 
+    column_spec(6, image = spec_pointrange(
+      x = dt.final.tr$LPOCV,
+      xmin = dt.final.tr$LPOCV_lo,
+      xmax = dt.final.tr$LPOCV_hi,
+      cex= 0.6,
+      vline = .80,
+      height=50)) %>% save_kable("Figures/cfRNA.Fig2.ENet.LASSO.models.table.pdf")
+
+    dt.final.tr[,N:=substr(FN,2,length(FN))]
+    dt.final.tr[Method=="ENet",.(`Number of predictor`=N,`Selected mRNAs`=predictor,AUC,`AUC Range`="",LPOCV,`LPOCV Range`="")]
+    dt.final.tr[Method=="ENet",.(`Number of predictor`=N,`Selected mRNAs`=predictor,AUC,`AUC Range`="",LPOCV,`LPOCV Range`="")] %>%
+    kbl(booktabs=F, digits=4) %>%
+    kable_styling(latex_options = c("basic"),full_width=F,font_size=10) %>%
+    #kable_styling(bootstrap_options = c("condensed"), full_width = F, font_size=10) %>%
+    column_spec(4, image = spec_pointrange(
+      x = dt.final.tr$AUC,
+      xmin = dt.final.tr$AUC_lo,
+      xmax = dt.final.tr$AUC_hi,
+      cex= 0.6,
+      vline = .90,
+      height=50)) %>% 
+    column_spec(6, image = spec_pointrange(
+      x = dt.final.tr$LPOCV,
+      xmin = dt.final.tr$LPOCV_lo,
+      xmax = dt.final.tr$LPOCV_hi,
+      cex= 0.6,
+      vline = .80,
+      height=50)) %>% save_kable("Figures/cfRNA.Fig2.ENet.models.table.pdf")
+  } # end of if FALSE
+
+  ##################################
+  ## Train for ENet and LASSO only #
+  ##################################
+  lapply(names(dl.enet.result), function(FN)
+    dl.enet.result[[FN]][grepl("ENet",methods) & fold=="28wk(preterm)",-c("fold")][,`:=`(Method="ENet",`N`=substr(FN,2,nchar(FN)) %>% as.integer)]
+  ) %>% rbindlist
+
+  lapply(names(dl.enet.result), function(FN)
+    dl.enet.result[[FN]][grepl("LASSO",methods) & fold=="28wk(preterm)",-c("fold")][,`:=`(Method="LASSO",`N`=substr(FN,2,nchar(FN)) %>% as.integer)]
+  ) %>% rbindlist
+
+  dt.enet.lasso.tr<-lapply(names(dl.enet.result), function(FN){
+    dt.foo<-dl.enet.result[[FN]][grepl("ENet",methods) & fold=="28wk(preterm)",-c("fold")][,`:=`(Method="ENet",`N`=substr(FN,2,nchar(FN)) %>% as.integer)]
+    dt.bar<-dl.enet.result[[FN]][grepl("LASSO",methods) & fold=="28wk(preterm)",-c("fold")][,`:=`(Method="LASSO",`N`=substr(FN,2,nchar(FN))%>% as.integer)]
+
+    rbind(
+    dt.foo[,.(Method,N,predictor,Measure="AUC",Score=AUC_test/100,Lo=AUC_test_lo/100,Hi=AUC_test_hi/100)],
+    dt.foo[,.(Method,N,predictor,Measure="LPOCV-AUC",Score=LPOCV_test/100,Lo=LPOCV_test/100,Hi=LPOCV_test/100)],
+    #dt.foo[,.(Method,N,predictor,Measure="LPOCV-AUC",Score=LPOCV_test/100,Lo=LPOCV_test_lo/100,Hi=LPOCV_test_hi/100)],
+    dt.foo[,.(Method,N,predictor,Measure="BIC",Score=BIC,Lo=BIC,Hi=BIC)],
+    dt.foo[,.(Method,N,predictor,Measure="AIC",Score=AIC,Lo=AIC,Hi=AIC)],
+    dt.bar[,.(Method,N,predictor,Measure="AUC",Score=AUC_test/100,Lo=AUC_test_lo/100,Hi=AUC_test_hi/100)],
+    dt.bar[,.(Method,N,predictor,Measure="LPOCV-AUC",Score=LPOCV_test/100,Lo=LPOCV_test/100,Hi=LPOCV_test/100)],
+    #dt.bar[,.(Method,N,predictor,Measure="LPOCV-AUC",Score=LPOCV_test/100,Lo=LPOCV_test_lo/100,Hi=LPOCV_test_hi/100)],
+    dt.bar[,.(Method,N,predictor,Measure="BIC",Score=BIC,Lo=BIC,Hi=BIC)],
+    dt.bar[,.(Method,N,predictor,Measure="AIC",Score=AIC,Lo=AIC,Hi=AIC)]
+    )
+  }
+  ) %>% rbindlist
+
+  p.enet.lasso.tr<-ggplot(dt.enet.lasso.tr[Method=="ENet"], aes(N,Score,group=Measure)) +
+    geom_pointrange(aes(col=Measure,ymin=Lo, ymax=Hi),position=position_dodge(width=0.2), size=.9,alpha=.8) +
+    geom_line(aes(col=Measure),size=1,alpha=.8) +
+    scale_x_discrete(limits=2:10) +
+    scale_y_continuous(limits=c(0.7,max(dt.enet.lasso.tr$Score+10)),expand=c(0,0)) +
+    scale_color_manual(values=c(cbPalette[4],cbPalette[3],"grey30",cbPalette[2]), breaks=c("BIC","AIC","AUC","LPOCV-AUC")) +
+    labs(x="Number of predictor mRNA in the training model",y="Score") +
+    #facet_wrap(Method~.,ncol=2,scales="free_y",strip.position="top") +
+    ggbreak::scale_y_break(c(1, 25),scales="free") +
+    theme_Publication() +
+    theme(legend.position="top",
+      legend.key = element_rect(fill = "transparent"),
+      legend.background = element_rect(fill='transparent', linetype="solid",color="black",size=.2),
+      legend.box.background = element_rect(fill='transparent'),
+      axis.text.y.right = element_blank(),
+      axis.ticks.y.right = element_blank(),
+      axis.line.y.right = element_blank(),
+      plot.margin=unit(c(-3,0.2,0.2,0.2),"cm") 
+    )
+
+  pdf(file="Figures/cfRNA.ENet.LASSO.training.pdf", width=11, height=5, title="ENet and LASSO AUC on training dataset")
+  print(p.enet.lasso.tr)
+  dev.off()
+
+
+  if(F){
+  p.enet.tr<-ggplot(dt.enet.lasso.tr[Method=="ENet"], aes(N,Score,group=Measure)) +
+    geom_pointrange(aes(col=Measure,ymin=Lo, ymax=Hi),position=position_dodge(width=0.2), size=.8,alpha=.8) +
+    geom_line(aes(col=Measure),size=1,alpha=.8) +
+    scale_x_discrete(limits=2:10) +
+    scale_y_continuous(limits=c(0.5,max(dt.enet.lasso.tr$Score+10)),expand=c(0,0)) +
+    scale_color_manual(values=rev(cbPalette2[1:4]), breaks=c("BIC","AIC","AUC","LPOCV-AUC")) +
+    labs(x="",y="Score") +
+    facet_wrap(Method~.,nrow=2,scales="free_y",strip.position="top") +
+    ggbreak::scale_y_break(c(1, 25),scales="free") +
+    theme_Publication() +
+    theme(legend.position="top",
+      legend.key = element_rect(fill = "transparent"),
+      legend.background = element_rect(fill='transparent'),
+      legend.box.background = element_rect(fill='transparent'),
+      axis.text.x= element_blank(),
+      axis.ticks.x= element_blank(),
+      axis.text.y.right = element_blank(),
+      axis.ticks.y.right = element_blank(),
+      axis.line.y.right = element_blank(),
+      plot.margin=unit(c(0.2,0.2,-1,0.2),"cm") # doesn't seem to work
+      #plot.margin=margin(b=-1,unit="cm")
+    )
+  p.lasso.tr<-ggplot(dt.enet.lasso.tr[Method=="LASSO"], aes(N,Score,group=Measure)) +
+    geom_pointrange(aes(col=Measure,ymin=Lo, ymax=Hi),position=position_dodge(width=0.2), size=.8,alpha=.8) +
+    geom_line(aes(col=Measure),size=1,alpha=.8) +
+    scale_x_discrete(limits=2:10) +
+    scale_y_continuous(limits=c(0.5,max(dt.enet.lasso.tr$Score+10)),expand=c(0,0)) +
+    scale_color_manual(values=rev(cbPalette2[1:4]), breaks=c("BIC","AIC","AUC","LPOCV-AUC")) +
+    labs(x="Number of mRNA in the model",y="Score") +
+    facet_wrap(Method~.,nrow=2,scales="free_y",strip.position="top") +
+    ggbreak::scale_y_break(c(1, 25),scales="free") +
+    theme_Publication() +
+    theme(legend.position="",
+      axis.text.y.right = element_blank(),
+      axis.ticks.y.right = element_blank(),
+      axis.line.y.right = element_blank(),
+      #plot.margin=margin(t=-1,unit="cm")
+      plot.margin=unit(c(-2,0.2,0.2,0.2),"cm") # not work?
+    )
+  #cowplot::plot_grid(p.enet.tr, p.lasso.tr, nrow=2) # plot_grid messed up ggbreak
+  aplot::plot_list(p.enet.tr, p.lasso.tr, nrow=2)
+  }
+
+```
+
+## Figure 3A-B
+```{r fig3.merge}
+  ##
+  library(patchwork)
+  pdf(file="Figures/cfRNA.KCV.ENet.LASSO.tr.pdf", width=11, height=17, title="ENet and LASSO AUC on validation dataset")
+  p.kcv / p.enet.lasso.tr + plot_annotation(tag_levels = 'A') & theme(plot.tag = element_text(size = 27, face="bold"))
+  dev.off()
+
+  #
+  pdf(file="Figures/cfRNA.KCV.ENet.tr.pdf", width=11, height=17, title="ENet AUC on validation dataset")
+  p.kcv / p.enet.lasso.tr + plot_annotation(tag_levels = 'A') + plot_layout(heights=c(1.3,1)) & theme(plot.tag = element_text(size = 27, face="bold"))
+  dev.off()
+
+```
+
+
+# Figure 4
+
+## Figure 4A - Validation of 2-10 predictor models
+```{r fig4A.val2_10}
+  #########################################
+  ## Validation result using Enet & LASSO #
+  #########################################
+  dt.enet.lasso.val<-lapply(names(dl.enet.result), function(FN){
+    rbind(
+    dl.enet.result[[FN]][grepl("ENet",methods),.(FN=FN,Method="ENet",predictor,fold,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100)],
+    dl.enet.result[[FN]][grepl("LASSO",methods),.(FN=FN,Method="LASSO",predictor,fold,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100)]
+    )
+  }) %>% rbindlist
+  dt.enet.lasso.val[,FN:=substr(FN,2,length(FN))]
+  dt.enet.lasso.val$FN<-factor(dt.enet.lasso.val$FN,level=2:10)#<- # isa `char`
+  dt.enet.lasso.val[,Source:=ifelse(fold=="Munchel",fold,ifelse(grepl("preterm",fold),"Discovery","Validation"))]
+  xtabs(~fold+Source+Method, dt.enet.lasso.val)
+
+  # Mean validated AUC by GA and Method
+  dt.enet.lasso.val[fold=="12wk(term)"][order(-AUC)][,.(.N,Mean=mean(AUC),SD=sd(AUC),Max=max(AUC),Min=min(AUC)),.(Method)]
+  dt.enet.lasso.val[fold=="20wk(term)"][order(-AUC)][,.(.N,Mean=mean(AUC),SD=sd(AUC),Max=max(AUC),Min=min(AUC)),.(Method)]
+  dt.enet.lasso.val[fold=="28wk(term)"][order(-AUC)][,.(.N,Mean=mean(AUC),SD=sd(AUC),Max=max(AUC),Min=min(AUC)),.(Method)]
+  dt.enet.lasso.val[fold=="36wk(term)"][order(-AUC)][,.(.N,Mean=mean(AUC),SD=sd(AUC),Max=max(AUC),Min=min(AUC)),.(Method)]
+
+  # Mean validated AUC by GA merging the two methods
+  dt.enet.lasso.val[fold=="12wk(term)"][order(-AUC)][,.(.N,Mean=mean(AUC),SD=sd(AUC),Max=max(AUC),Min=min(AUC))]
+  dt.enet.lasso.val[fold=="20wk(term)"][order(-AUC)][,.(.N,Mean=mean(AUC),SD=sd(AUC),Max=max(AUC),Min=min(AUC))]
+  dt.enet.lasso.val[fold=="28wk(term)"][order(-AUC)][,.(.N,Mean=mean(AUC),SD=sd(AUC),Max=max(AUC),Min=min(AUC))]
+  dt.enet.lasso.val[fold=="36wk(term)"][order(-AUC)][,.(.N,Mean=mean(AUC),SD=sd(AUC),Max=max(AUC),Min=min(AUC))]
+
+  # Best performing model by GA
+  dt.enet.lasso.val[Source=="Validation" & Method=="ENet",.(Method,fold,FN,predictor,AUC)][order(fold,-AUC)][,.SD[1],fold]
+  dt.enet.lasso.val[Source=="Validation" & Method=="LASSO",.(Method,fold,FN,predictor,AUC)][order(fold,-AUC)][,.SD[1],fold]
+
+  # get the best performing model by Lasso and ENet separately
+  dt.enet.lasso.val[Source=="Validation"][order(Method,fold,-AUC)][,.SD[1],.(Method,fold)] 
+
+  #
+  dt.foo<-dt.enet.lasso.val[Source=="Validation"][,GA:=substr(fold,1,4)]
+  p.enet.lasso.val<-ggplot(dt.foo, aes(GA, AUC,col=Method)) + 
+    geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi),position=position_dodge(width=0.7), size=.9,alpha=.8) +
+    scale_color_manual(values=c("grey30","grey60")) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ylab("AUC") + xlab("Gestational age (validation dataset)") +
+    facet_wrap(~FN,nrow=1) +
+    theme_Publication() + 
+    theme(legend.position="top",
+          axis.text.x = element_text(angle = 45, hjust=1, size=rel(.8)))
+  #
+  p.enet.lasso.val2<-ggplot(dt.foo, aes(FN, AUC,col=Method)) + 
+    geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi),position=position_dodge(width=0.8), size=.8,alpha=.8) +
+    scale_color_manual(values=c("grey30","grey60")) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ylab("AUC") + xlab("Number of predictor mRNA in the training model") +
+    facet_grid(Source~GA) + 
+    theme_Publication() + 
+    theme(legend.position="top")
+  #
+  dt.foo<-dt.enet.lasso.val[Source=="Validation" & Method=="ENet"][,GA:=substr(fold,1,4)]
+  p4.enet.lasso.val3<-ggplot(dt.foo, aes(FN, AUC)) + 
+    geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi), size=.8,alpha=.8, col="grey30") +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ylab("AUC") + xlab("Number of predictor mRNA in the training model") +
+    facet_grid(Source~GA) + 
+    theme_Publication() +
+    theme(legend.position="top", panel.border = element_rect(colour = "black"))
+
+  p4.enet.lasso.val4<-ggplot(dt.foo, aes(FN, AUC)) + 
+    geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi,col=GA), position=position_dodge(width=.8), size=.8,alpha=.8) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ggsci::scale_color_jama() +
+    ylab("AUC") + xlab("Number of predictor mRNA in the training model") +
+    facet_grid(Source~.) + 
+    theme_Publication() +
+    theme(legend.position="top", panel.border = element_rect(colour = "black"))
+```
+
+## Figure 4B - Two univariable models
+```{r fig4B.uni.models}
+  ########################################################################
+  ## Two univariable mRNA models (LEP and PAPPA2) + 2- and 3-mRNA models #
+  ########################################################################
+  #dt.best.result[predictor=="LEP,LY6G6D,PAPPA2",predictor:="LEP,PAPPA2,LY6G6D"] # rename
+  dt.best.result<-dt.best.result[predictor!="LEP,LY6G6D,PAPPA2"] # remove these rows
+  dt.best.result[,Source:=ifelse(fold=="Munchel",fold,ifelse(grepl("preterm",fold),"Discovery","Validation"))]
+
+  dt.best.result[Source=="Discovery"]
+  dt.best.result[Source=="Validation"]
+  dt.best.result[Source=="Munchel"][order(-AUC_test)]
+
+  dt.baz<-dt.best.result[Source!="Munchel",.(Source,fold,predictor,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100)][,GA:=substr(fold,1,4)]
+  p4.top.model<-ggplot(dt.baz, aes(predictor, AUC)) + 
+    geom_rect(data = dt.baz[Source=="Discovery" & GA=="28wk"],aes(fill = GA),fill="grey80",xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf,alpha = 0.2) +
+    geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi),col="grey30",size=.9,alpha=.8) +
+    scale_x_discrete(limits=dt.baz[,.N,predictor]$predictor) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ylab("AUC") + xlab("mRNA(s) in the predictive models") +
+    facet_grid(Source~GA) + 
+    theme_Publication() +
+    theme(legend.position="",
+          axis.text.x = element_text(angle = 45, hjust=1, size=rel(.8)), 
+			    axis.title.x = element_text(hjust = 1), # align the title to the right
+          panel.border = element_rect(colour = "black"))
+```
+
+## Figure 4C - Munchel 
+```{r fig4C.Munchel}
+  dt.qux<-dt.best.result[Source=="Munchel",.(Source,fold,predictor,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100)]
+  p4.top.model.munchel<-ggplot(dt.qux, aes(predictor, AUC)) + 
+    geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi),col="grey30",size=.9,alpha=.8) +
+    scale_x_discrete(limits=dt.baz[,.N,predictor]$predictor) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ylab("AUC") + xlab("") +
+    facet_grid(Source~.) + #,nrow=1) +
+    theme_Publication() +
+    theme(axis.text.x = element_text(angle = 45, hjust=1, size=rel(.8)), 
+          panel.border = element_rect(colour = "black"))
+```
+
+## Figure 4 - Abundance of LEP & PAPPA 
+```{r fig4.LEP.PAPPA2.CPM, fig.cap="Fig3B"}
+  load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData") # dt.cpmZ (preterm)
+  load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
+  #load("RData/dt.cpmZ.munchel.RData") # dt.cpmZ.munchel (Munchel)
+
+  dt.foo<-rbind(
+    dt.cpmZ[geneName %in% c("LEP","PAPPA2"),.(dataset="Discovery",GA,Condition,geneName,logCPM,logCPMZ)],
+    dt.cpmZ.term[geneName %in% c("LEP","PAPPA2"),.(dataset="Validation",GA,Condition,geneName,logCPM,logCPMZ)]
+    )
+  dt.foo$Condition<-factor(dt.foo$Condition, level=c("Case","Control"))
+
+  p4.lep.pappa2<- ggplot(dt.foo, aes(GA, logCPM, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5,alpha=.8) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge(),alpha=.7) +
+    ylab("Count Per Million (log2 scale)") + xlab("Gestational Age") +
+    ggsci::scale_color_jama() +
+    facet_grid(dataset~geneName) +
+    theme_Publication() +theme (panel.border = element_rect(colour = "black"),legend.position="top")
+```
+
+
+## Figure 4 - ROC
+```{r fig4.roc}
+  # dt.roc.data from WF2.extra.bits2.Rmd
+  lazyLoad("WF2.extra.bits2_cache/beamer/roc_lep_pappa2_3110fa4c16ccfa47c784596b3531122d")
+  p4.roc.curve<-ggplot(dt.roc.data, aes(1-specificity,sensitivity)) +
+    geom_rect(data = dt.roc.data[dataset=="Discovery (28wk)"], aes(xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf),fill="grey90",alpha = 0.1) +
+    geom_line() +
+    geom_text(data=dt.roc,size=4,
+              mapping=aes(x=.55,y=.5,label=paste0("AUC=",round(roc,3)," (",round(roc_lo,3),", ",round(roc_hi,3),")"))
+              ) +
+    ylab("Sensitivity") + xlab("1-Specificity") +
+    facet_grid(geneName~dataset) +
+    theme_Publication() + 
+    theme(legend.position="",
+          axis.text.x = element_text(angle = 45, hjust=1), 
+          panel.border = element_rect(colour = "black"))
+```
+
+## Figure4 - merge all
+```{r fig4.merge}
+  p4.middle.right<-cowplot::plot_grid(NULL,p4.top.model.munchel,labels=c("","C"),ncol=1,label_size=27,rel_heights=c(1,1.5))
+  p4.middle<-cowplot::plot_grid(p4.top.model, p4.middle.right, labels=c("B",""),label_size=27,rel_widths=c(2.6,1))
+
+  pdf(file="Figures/cfRNA.Fig4.pdf", width=11, height=17, title="Fig4: model selection and validation")
+  cowplot::plot_grid(p4.enet.lasso.val3, p4.middle, p4.roc.curve, nrow=3,labels=c("A","","D"),label_size=27,rel_heights=c(1,1.5,1.3), align="v", axis="b")
+  dev.off()
+
+  #
+  if(F){
+    p4.top<-cowplot::plot_grid(p4.enet.lasso.val4, p4.top.model, labels="AUTO",label_size=27, align="h",axis="bt") #,rel_widths=c(1,1.5,1.3))
+    p4.middle.left<-cowplot::plot_grid(NULL,p4.top.model.munchel,labels=c("","C"),ncol=1,label_size=27,rel_heights=c(1,1.95))
+    p4.middle<-cowplot::plot_grid(p4.middle.left,p4.lep.pappa2, labels=c("","D"),label_size=27,rel_widths=c(1,2))
+
+    pdf(file="Figures/cfRNA.Fig4.v2.pdf", width=11, height=17, title="Fig4: model selection and validation")
+    cowplot::plot_grid(p4.top, p4.middle, p4.roc.curve, nrow=3,labels=c("","","E"),label_size=27,rel_heights=c(1,1.5,1.3), align="v", axis="b")
+    dev.off()
+  } 
+```
+
+# Figure 5
+
+## Figure 5 - Abundance of LEP & PAPPA 
+```{r fig5.LEP.PAPPA2.CPM, fig.cap="Fig5"}
+  load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData") # dt.cpmZ (preterm)
+  load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
+  load("RData/dt.cpmZ.munchel.RData") # dt.cpmZ.munchel (Munchel)
+
+  dt.foo<-rbind(
+    dt.cpmZ[geneName %in% c("LEP","PAPPA2"),.(dataset="Discovery",GA,Condition,geneName,logCPM,logCPMZ)],
+    dt.cpmZ.term[geneName %in% c("LEP","PAPPA2"),.(dataset="Validation",GA,Condition,geneName,logCPM,logCPMZ)],
+    dt.cpmZ.munchel[geneName %in% c("LEP","PAPPA2"),.(dataset="Munchel",GA="31wk",Condition,geneName,logCPM,logCPMZ)]
+    )
+  dt.foo[,CPM:=2^logCPM]
+  dt.foo$Condition<-factor(dt.foo$Condition, level=c("Case","Control"))
+  dt.foo$dataset<-factor(dt.foo$dataset, level=c("Discovery","Validation","Munchel"))
+
+  #
+  dt.foo[,summary(.SD),.(dataset,geneName),.SDcols="CPM"]
+  dt.foo$CPM %>% summary
+
+  #######################################
+  # get the p-values (based on logCPMZ) #
+  #######################################
+  # by outcome
+  dt.pval<-dt.foo[,.(Pval=wilcox.test(logCPM~Condition)$p.value),.(dataset,GA,geneName)]
+  dt.pval[,Condition:="Case"] # ggsignif complains without this
+
+  # by GA
+  dt.pval28.36<-dt.foo[GA %in% c("28wk","36wk") & dataset=="Validation",.(Pval=wilcox.test(logCPM~GA)$p.value),.(dataset,geneName)][,`:=` (`GA1`="28wk",GA2="36wk")]
+  dt.pval28.36[,Condition:="Case"] # ggsignif complains without this
+
+  dt.pval20.28<-dt.foo[GA %in% c("20wk","28wk"),.(Pval=wilcox.test(logCPM~GA)$p.value),.(dataset,geneName)][,`:=` (`GA1`="20wk",GA2="28wk")]
+  dt.pval20.28[,Condition:="Case"] # ggsignif complains without this
+
+  dt.pval12.20<-dt.foo[GA %in% c("12wk","20wk"),.(Pval=wilcox.test(logCPM~GA)$p.value),.(dataset,geneName)][,`:=` (`GA1`="12wk",GA2="20wk")]
+  dt.pval12.20[,Condition:="Case"] # ggsignif complains without this
+
+  dt.foo$Condition<-relevel(dt.foo$Condition, ref="Control")
+
+
+  #
+  p5.lep.pappa2<- 
+    ggplot(dt.foo, aes(GA, CPM, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5,alpha=.8) +
+    geom_point(pch = 21, size=2.5, position = position_jitterdodge(), alpha=.7) +
+    scale_y_continuous(trans = scales::log2_trans(),
+                        breaks = trans_breaks("log2",n=5, function(x) 2^x),
+                        labels = trans_format("log2", math_format(2^.x)),
+                        limits=c(min(dt.foo$CPM),max(dt.foo$CPM)*2)) +
+    annotation_logticks(base=2,sides="l") +
+    ggsignif::geom_signif(data=dt.pval, 
+                          aes(xmin = GA, xmax = GA, annotations = format(Pval, scientific=T,digits=2), y_position = 7.6),
+                          textsize = 5, vjust = -0.2, tip_length=0.01,
+                          manual = TRUE) +
+    ylab("Count Per Million") + xlab("Gestational Age") +
+    ggsci::scale_color_jama() +
+    facet_grid(geneName~dataset, scales="free_x", space="free_x") +
+    theme_Publication() +theme (panel.border = element_rect(colour = "black"),legend.position="top")
+
+  #
+  pdf(file="Figures/cfRNA.Fig5.pdf", width=11, height=8.5, title="Fig5: Abundance of LEP and PAPPA2")
+  p5.lep.pappa2
+  dev.off()
+
+  #
+  #
+  p5.lep.pappa2.sig<- ggplot(dt.foo, aes(GA, CPM, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5,alpha=.8) +
+    geom_point(pch = 21, size=2.5, position = position_jitterdodge(), alpha=.7) +
+    scale_y_continuous(trans = scales::log2_trans(),
+                       breaks = scales::trans_breaks("log2",n=5, function(x) 2^x),
+                       labels = scales::trans_format("log2", scales::math_format(2^.x)),
+                        limits=c(min(dt.foo$CPM),max(dt.foo$CPM)*10)) +
+    annotation_logticks(base=2,sides="l") +
+    ggsci::scale_color_jama() +
+    ggsignif::geom_signif(data=dt.pval, 
+                          aes(xmin = GA, xmax = GA, annotations = format(Pval, scientific=T,digits=2), y_position = 10),
+                          textsize = 5, vjust = -0.2, tip_length=0.01,
+                          manual = TRUE, color="black") +
+    ggsignif::geom_signif(data=dt.pval28.36, 
+                          aes(xmin = GA1, xmax = GA2, annotations = format(Pval, scientific=T,digits=2), y_position = 8.5),
+                          textsize = 5, vjust = -0.2, tip_length=0.03,
+                          manual = TRUE, color="black") +
+    ggsignif::geom_signif(data=dt.pval20.28, 
+                          aes(xmin = GA1, xmax = GA2, annotations = format(Pval, scientific=T,digits=2), y_position = 7.5),
+                          textsize = 5, vjust = -0.2, tip_length=0.03,
+                          manual = TRUE, color="black") +
+    ggsignif::geom_signif(data=dt.pval12.20, 
+                          aes(xmin = GA1, xmax = GA2, annotations = format(Pval, scientific=T,digits=2), y_position = 6.5),
+                          textsize = 5, vjust = -0.2, tip_length=0.03,
+                          manual = TRUE, color="black") +
+    ylab("Count Per Million") + xlab("Gestational Age") +
+    facet_grid(geneName~dataset, scales="free_x", space="free_x") +
+    theme_Publication() +theme (panel.border = element_rect(colour = "black"),legend.position="top")
+
+  #
+  pdf(file="Figures/cfRNA.Fig5.sig.pdf", width=11, height=8.5, title="Fig5: Abundance of LEP and PAPPA2")
+  p5.lep.pappa2.sig
+  dev.off()
+
+
+  ##
+  ##
+  if(F){
+    ## Validation
+    # 12-20wk
+    dt.cpmZ.term[GA=="20wk" & geneName=="LEP",.(median(logCPM))] /
+    dt.cpmZ.term[GA=="12wk" & geneName=="LEP",.(median(logCPM))]
+
+    wilcox.test(dt.cpmZ.term[GA=="20wk" & geneName=="LEP"]$logCPM, dt.cpmZ.term[GA=="12wk" & geneName=="LEP"]$logCPM)$p.value
+
+    # 20-28wk
+    dt.cpmZ.term[GA=="28wk" & geneName=="LEP",.(median(logCPM))] /
+    dt.cpmZ.term[GA=="20wk" & geneName=="LEP",.(median(logCPM))]
+    wilcox.test(dt.cpmZ.term[GA=="20wk" & geneName=="LEP"]$logCPM, dt.cpmZ.term[GA=="28wk" & geneName=="LEP"]$logCPM)$p.value
+
+    # 20-28wk (case)
+    dt.cpmZ.term[GA=="20wk" & geneName=="LEP" & Condition=="Case",.(median(logCPM))] /
+    dt.cpmZ.term[GA=="28wk" & geneName=="LEP" & Condition=="Case",.(median(logCPM))] 
+    wilcox.test(dt.cpmZ.term[GA=="20wk" & geneName=="LEP" & Condition=="Case"]$logCPM, dt.cpmZ.term[GA=="28wk" & geneName=="LEP" & Condition=="Case"]$logCPM)$p.value
+
+    # 20-28wk (control)
+    dt.cpmZ.term[GA=="20wk" & geneName=="LEP" & Condition=="Control",.(median(logCPM))] /
+    dt.cpmZ.term[GA=="28wk" & geneName=="LEP" & Condition=="Control",.(median(logCPM))] 
+    wilcox.test(dt.cpmZ.term[GA=="20wk" & geneName=="LEP" & Condition=="Control"]$logCPM, dt.cpmZ.term[GA=="28wk" & geneName=="LEP" & Condition=="Control"]$logCPM)$p.value
+
+    #28-36wk
+    dt.cpmZ.term[GA=="28wk" & geneName=="LEP",.(median(logCPM))] /
+    dt.cpmZ.term[GA=="36wk" & geneName=="LEP",.(median(logCPM))]
+    wilcox.test(dt.cpmZ.term[GA=="28wk" & geneName=="LEP"]$logCPM, dt.cpmZ.term[GA=="36wk" & geneName=="LEP"]$logCPM)$p.value
+
+    ## Discovery
+    # 12-20wk
+    dt.cpmZ[GA=="20wk" & geneName=="LEP",.(median(logCPM))] /
+    dt.cpmZ[GA=="12wk" & geneName=="LEP",.(median(logCPM))]
+
+    wilcox.test(dt.cpmZ[GA=="20wk" & geneName=="LEP"]$logCPM, dt.cpmZ[GA=="12wk" & geneName=="LEP"]$logCPM)$p.value
+
+    # 20-28wk
+    dt.cpmZ[GA=="28wk" & geneName=="LEP",.(median(logCPM))] /
+    dt.cpmZ[GA=="20wk" & geneName=="LEP",.(median(logCPM))]
+    wilcox.test(dt.cpmZ[GA=="20wk" & geneName=="LEP"]$logCPM, dt.cpmZ[GA=="28wk" & geneName=="LEP"]$logCPM)$p.value
+    #
+
+    dt.cpmZ[GA=="20wk" & geneName=="LEP" & Condition=="Case",.(median(logCPM))] /
+    dt.cpmZ[GA=="28wk" & geneName=="LEP" & Condition=="Case",.(median(logCPM))] 
+    wilcox.test(dt.cpmZ[GA=="20wk" & geneName=="LEP" & Condition=="Case"]$logCPM, dt.cpmZ[GA=="28wk" & geneName=="LEP" & Condition=="Case"]$logCPM)$p.value
+  }
+```
+
+# Tables
+
+## Table 1 - core 17 genes from the 28wkGA discovery
+```{r Table1}
+load("RData/dl.logregZ.preterm.POPS-2022.GRCh38.88.RData") # univariable logistic regression
+dl.logregZ[["28wk"]]
+
+load("RData/dl.resLFC.preterm.POPS-2022.GRCh38.88.RData") # DESeq2 result
+dl.resLFC[["28wk"]]
+
+load("RData/dl.res.edgeR.preterm.POPS-2022.GRCh38.88.RData") # edgeR result
+dl.res.edgeR[["28wk"]]
+
+venn.top1pctZ<-list(`DESeq2`=dl.resLFC[["28wk"]][order(pvalue)][1:151]$gene_id,
+                  `edgeR`=dl.res.edgeR[["28wk"]][order(PValue)][1:151]$gene_id,
+                `AUC`=dl.logregZ[["28wk"]][order(-auc)][1:151]$gene_id,
+                `AIC`=dl.logregZ[["28wk"]][order(AIC)][1:151]$gene_id
+                )
+dt.venn.top1pctZ<-lapply(names(venn.top1pctZ), function(i) data.table(i,venn.top1pctZ[[i]])) %>% rbindlist %>% dcast.data.table(V2~i, fun=length)
+core17<-dt.venn.top1pctZ[AIC==1 & AUC==1 & DESeq2==1 & edgeR==1]$V2
+
+dt.core17<-merge(dl.logregZ[["28wk"]], dl.res.edgeR[["28wk"]])[gene_id %in% core17,.(gene_id,
+                                                               auc,auc_lo,auc_hi,
+                                                               odds,odds_lo,odds_hi,pval,
+                                                               AIC,BIC,logFC,logCPM)]
+# add baseMan and FC from DESeq2
+dt.core17<-merge(dt.core17, dl.resLFC[["28wk"]][,.(gene_id,baseMean,log2FoldChange)])[order(-auc)]
+
+# add the mean CPM from individual samples
+merge(dt.core17,
+      dt.cpmZ[GA=="28wk" & geneName %in% core17,.(logCPM=mean(logCPM)),.(`gene_id`=geneName)]
+      ,by="gene_id")[order(-auc)]
+
+fwrite(dt.core17, file="Tables/core17.csv")
+
+
+library(flextable)
+library(officer)
+dt.baz<-dt.core17[,.(Gene=gene_id,
+             AUC=paste0(sprintf("%.3f",auc)," (",sprintf("%.3f",auc_lo),"-",sprintf("%.3f",auc_hi),")"),
+            `Odds Ratio`=paste0(sprintf("%.3f",odds)," (",sprintf("%.3f",odds_lo),"-",sprintf("%.3f",odds_hi),")"),
+            `P-value`=format(pval,digits=2,scientific=T),
+            #FC=sprintf("%.1f",2^logFC),  # from edgeR
+            FC=sprintf("%.1f",2^log2FoldChange), # from DESeq2
+            CPM=sprintf("%.1f",2^logCPM)
+             )]
+dt.baz %>% flextable %>% save_as_docx(path="Tables/core17.docx", pr_section=prop_section(page_size(orient="landscape")))
+```
+
+# Supplementary Information
+
+## SI.Text.Fig1A - sum of read count on chrY genes
+```{r SI.T.Fig1A}
+  lazyLoad("downsample.chrY.TPM_cache/beamer/load_ds_salmon_4b8dd727729fd0ae5deb423d69e7c16d") # dl.chrY.TPM and dl.stat
+
+  dt.ds.chrY <- lapply(names(dl.stat), function(DS) dl.stat[[DS]][,DS:=DS]) %>% rbindlist
+  dt.ds.chrY$DS<-factor(dt.ds.chrY$DS, level=c("1M","5M","10M"))
+  dt.ds.chrY[,GA:=gsub(" weeks","wk",GA)]
+  setnames(dt.ds.chrY, "Type", "Method")
+
+  p1.chrY<-ggplot(dt.ds.chrY, aes(Method,SumCount)) +
+  geom_rect(data = dt.ds.chrY[DS=="5M"],fill="grey60",xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf,alpha = 0.2) +
+  geom_bar(aes(fill=Method), stat="identity",width=.5, alpha=.7) +
+  ggsci::scale_fill_jama() +
+  facet_grid(Sex~DS+GA,scales="free") +
+  labs(y="Sum of read count on chrY genes") +
+  theme_Publication() +
+  theme(legend.position="top",
+        panel.border=element_rect(colour="black"),
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+  #
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1A.pdf", width=11, height=8, title="Abundance of chrY")
+  p1.chrY
+  dev.off()
+```
+
+## SI.Text.Fig1B - Confusion Matrix
+```{r SI.T.Fig1B}
+  lazyLoad("downsample.chrY.TPM_cache/beamer/load_ds_salmon_4b8dd727729fd0ae5deb423d69e7c16d") # dl.chrY.TPM and dl.stat
+
+  lapply(dl.chrY.TPM, function(i) i[,.(sum(Counts),sum(TPM))])
+
+  dl.chrY.TPM<-lapply(dl.chrY.TPM, function(DT) {
+                  #DT[Sex=="Male",Class:=ifelse(TPM>0,"TP","FN")]
+                  #DT[Sex=="Female",Class:=ifelse(TPM==0,"TN","FP")] 
+                  DT[,`Predicted Sex`:=ifelse(TPM>0, "Male","Female"),Type]
+                  DT$Sex<-factor(DT$Sex, level=c("Male","Female"))
+                  DT$`Predicted Sex`<-factor(DT$`Predicted Sex`, level=c("Male","Female"))
+                  DT 
+  }) 
+
+  #####################################
+  # Predictive performance by DS & GA #
+  #####################################
+  dt.chrY.con.ga<-lapply(names(dl.chrY.TPM), function(DS){
+    lapply(split(dl.chrY.TPM[[DS]], dl.chrY.TPM[[DS]]$GA), function(DT){
+    my.GA<-DT[,.N,GA]$GA
+
+    cm1<-caret::confusionMatrix(DT[Type=="HiSat2+Salmon"][["Predicted Sex"]], reference=DT[Type=="HiSat2+Salmon"][["Sex"]])
+    cm2<-caret::confusionMatrix(DT[Type=="Salmon (SA mode)"][["Predicted Sex"]], reference=DT[Type=="Salmon (SA mode)"][["Sex"]])
+
+    rbind(
+    data.table(DS=DS, GA=my.GA,Type="HiSat2+Salmon", Measure=names(cm1$byClass), Value=cm1$byClass),
+    data.table(DS=DS, GA=my.GA,Type="Salmon (SA mode)", Measure=names(cm2$byClass), Value=cm2$byClass)
+    )[Measure %in% c("F1","Precision", "Recall")]
+    }) %>% rbindlist 
+  }) %>% rbindlist 
+
+  dt.chrY.con.ga$DS<-factor(dt.chrY.con.ga$DS, level=c("1M","5M","10M"))
+  dt.chrY.con.ga[,GA:=gsub(" weeks","wk",GA)]
+  setnames(dt.chrY.con.ga, "Type", "Method")
+
+  p1.chrY.con<-ggplot(dt.chrY.con.ga, aes(Method,Value)) +
+  geom_rect(data = dt.chrY.con.ga[DS=="5M"],fill="grey60",xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf,alpha = 0.2) +
+  geom_bar(aes(fill=Method), stat="identity",width=.5, alpha=.7) +
+  ggsci::scale_fill_jama() +
+  facet_grid(Measure~DS+GA,scales="free") +
+  labs(y="Score") +
+  theme_Publication() +
+  theme(legend.position="none",
+        panel.border=element_rect(colour="black"),
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+
+  # merge SI.Fig1A + SI.Fig1B
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1AB.pdf", width=11, height=14, title="Abundance of chrY")
+  cowplot::plot_grid(p1.chrY, p1.chrY.con, labels="AUTO", ncol=1, label_size=27, align="v", axis="l")
+  dev.off()
+```
+
+## SI.Text.Table2 - 100 random samples
+```{r SI.T.Table1}
+  dl.chrY.TPM[[1]][Type=="Salmon (SA mode)",.N,.(GA,Sex)] %>% dcast.data.table(GA~Sex)
+  xtabs(~GA+Sex, data=dl.chrY.TPM[[1]][Type=="Salmon (SA mode)"]) %>% addmargins
+  write.csv(xtabs(~GA+Sex, data=dl.chrY.TPM[[1]][Type=="Salmon (SA mode)"]) %>% addmargins, file="Tables/Suppl/SI.T.Table1.csv")
+
+  # same as the above
+  #xtabs(~GA+Sex, data=dt.samples[SampleID %in% dl.chrY.TPM[[1]]$SampleID]) %>% addmargins 
+```
+
+## SI.Text.Table2 - Confusion Matrix
+```{r SI.T.Table2}
+  ###########################
+  # Confusion matrix for 1M #
+  ###########################
+  dl.chrY.TPM[["1M"]][,.(Type,`Predicted Sex`,Sex)] %>% ftable #%>% pander(caption="Confusion matrix 1M",emphasize.strong.cols = 1, emphasize.strong.rows=1)
+  caret::confusionMatrix(dl.chrY.TPM[["1M"]][Type=="Salmon (SA mode)"][["Predicted Sex"]], reference=dl.chrY.TPM[["1M"]][Type=="Salmon (SA mode)"][["Sex"]])
+  caret::confusionMatrix(dl.chrY.TPM[["10M"]][Type=="Salmon (SA mode)"][["Predicted Sex"]], reference=dl.chrY.TPM[["1M"]][Type=="Salmon (SA mode)"][["Sex"]])
+
+  dl.chrY.TPM[["1M"]][,.(`Predicted Sex`,Sex,Type)] %>% ftable  %>% data.table %>% dcast.data.table(Predicted.Sex+Sex~Type, value.var="Freq")
+
+  (dt.chrY.con1<-lapply(names(dl.chrY.TPM), function(DS){
+    dt.foo<-dl.chrY.TPM[[DS]][,.(`Predicted Sex`,Sex,Type)] %>% ftable  %>% data.table %>% dcast.data.table(Predicted.Sex+Sex~Type, value.var="Freq")
+    dt.foo[,DS:=DS]
+    dt.foo[Predicted.Sex=="Male" & Sex=="Male",Measure:="TP"]
+    dt.foo[Predicted.Sex=="Female" & Sex=="Female",Measure:="TN"]
+    dt.foo[Predicted.Sex=="Male" & Sex=="Female", Measure:="FP"]
+    dt.foo[Predicted.Sex=="Female" & Sex=="Male", Measure:="FN"]
+    dt.foo[,.(DS,Measure,`HiSat2+Salmon`,`Salmon (SA mode)`)][order(-Measure)]
+  }) %>% rbindlist)
+
+  ################################
+  # Predictive performance by DS #
+  ################################
+  dl.chrY.cm<-lapply(dl.chrY.TPM, function(DT){
+    cm1<-caret::confusionMatrix(DT[Type=="HiSat2+Salmon"][["Predicted Sex"]], reference=DT[Type=="HiSat2+Salmon"][["Sex"]])
+    cm2<-caret::confusionMatrix(DT[Type=="Salmon (SA mode)"][["Predicted Sex"]], reference=DT[Type=="Salmon (SA mode)"][["Sex"]])
+    list(`HiSat2+Salmon`=cm1, `Salmon (SA model)`=cm2)
+  })
+  lapply(dl.chrY.cm, function(DS){
+    lapply(DS, function(CM) data.table(Measure=names(CM$byClass), Value=CM$byClass)[Measure %in% c("F1","Precision","Recall")])
+  })
+
+  lapply(dl.chrY.cm, function(DS){
+    lapply(DS, function(CM) data.table(CM$table))
+  })
+
+  # alternative method
+  dl.chrY.cm2<-lapply(dl.chrY.TPM, function(DT){
+    cm1<-caret::confusionMatrix(DT[Type=="HiSat2+Salmon"][["Predicted Sex"]], reference=DT[Type=="HiSat2+Salmon"][["Sex"]])
+    cm2<-caret::confusionMatrix(DT[Type=="Salmon (SA mode)"][["Predicted Sex"]], reference=DT[Type=="Salmon (SA mode)"][["Sex"]])
+
+    rbind(
+    data.table(Type="HiSat2+Salmon", Measure=names(cm1$byClass), Value=cm1$byClass),
+    data.table(Type="Salmon (SA mode)", Measure=names(cm2$byClass), Value=cm2$byClass)
+    )
+  })
+  lapply(dl.chrY.cm2, function(DT) DT[Measure %in% c("F1","Precision", "Recall")] %>% dcast.data.table(Measure~Type, value.var="Value"))
+  (dt.chrY.con2<-lapply(names(dl.chrY.cm2), function(DS) dl.chrY.cm2[[DS]][Measure %in% c("F1","Precision", "Recall")][,DS:=DS] %>% dcast.data.table(DS+Measure~Type, value.var="Value")) %>% rbindlist)
+
+  fwrite(rbind(dt.chrY.con1, dt.chrY.con2)[order(DS)], file="Tables/Suppl/SI.T.Table2.csv")
+
+  ###############################
+  # Confusion matrix by DS & GA #
+  ###############################
+  dl.chrY.con.ga<-lapply(dl.chrY.TPM, function(DT1){
+    lapply(split(DT1, DT1$GA), function(DT){
+    cm1<-caret::confusionMatrix(DT[Type=="HiSat2+Salmon"][["Predicted Sex"]], reference=DT[Type=="HiSat2+Salmon"][["Sex"]])
+    cm2<-caret::confusionMatrix(DT[Type=="Salmon (SA mode)"][["Predicted Sex"]], reference=DT[Type=="Salmon (SA mode)"][["Sex"]])
+
+    list(`HiSat2+Salmon`=cm1, `Salmon (SA model)`=cm2)
+    })
+  })
+  dl.chrY.con.ga[["1M"]][["36 weeks"]] #[["HiSat2+Salmon"]]
+
+#
+  lapply(dl.chrY.con.ga, function(DS){
+    lapply(DS, function(WK) {
+      lapply(WK, function(CM) CM[["table"]])
+    })
+  })
+
+
+```
+
+## SI.Text.Fig1C - Heatmap of chrY (HiSat2+Salmon)
+```{r SI.T.Fig1D}
+  # load the transcript definition used in Salmon (SA)
+  load("RData/gr.ensg.Homo_sapiens.GRCh38.88.cdna.all.ncrna.fa.gz.RData") %>% system.time # isa GRanges
+  gr.ensg[seqnames(gr.ensg)=="Y" & gr.ensg$gene_biotype=="protein_coding",] # chrY protein-coding; n=42 
+  this.gene<-(gr.ensg[seqnames(gr.ensg)=="Y" & gr.ensg$gene_biotype=="protein_coding",] %>% names) # chrY protein-coding; n=42 (without the training version e.g. ENSG00000176679)
+
+  # load the TPM based om 10M-ds dataset
+  load("RData/li.TPM.10M.RData")
+  li.TPM[["Salmon_aln"]][["TPM"]] %>% dim # 62803 genes x 100 samples
+
+  ## Heatamp of TPM using `HiSat2+Salmon` (based on 10M)
+  li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev # count of 42 chrY genes
+  filter.g2<-li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev >0 # filter for 42 chrY genes with TPM >0
+  this.gene2<-(li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev)[filter.g2] %>% names # n=24 genes
+  this.sample2<-li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% colSums %>% sort %>% rev %>% names # n=100 samples sorted 
+  filter.s2<-li.TPM[["Salmon_aln"]][["counts"]][this.gene2,] %>% colSums %>% sort %>% rev >0 # filter for samples with TPM >0 
+  predicted.male2<-(li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% colSums %>% sort %>% rev)[filter.s2] %>% names # n=60 samples 
+
+  my.mat2<-log2(li.TPM[["Salmon_aln"]][["counts"]][this.gene2,this.sample2]+1)
+  rownames(my.mat2)<-gr.ensg[this.gene2]$gene_name
+
+  col.anno<-mat.samples[this.sample2,c("GA","Sex"),drop=F] # isa `data.frame`
+  col.anno$"Predicted Sex"<-ifelse(this.sample2 %in% predicted.male2,"Male","Female")
+  col.anno<-col.anno[,c("Predicted Sex","Sex","GA")]
+
+  GA.color<-ggsci::pal_jama("default",alpha=.9)(4)
+  names(GA.color)<-c("12wk","20wk","28wk","36wk")
+  my.color=list(
+      `Sex`=c(Female="hotpink",Male='skyblue'),
+      `Predicted Sex`=c(Female="hotpink3",Male='skyblue3'),
+      #`GA`=c("12wk"=cbPalette2[1],"20wk"=cbPalette2[2],"28wk"=cbPalette2[3],"36wk"=cbPalette2[4])
+      `GA`=GA.color
+  )
+
+  ph1<-pheatmap::pheatmap(my.mat2,
+                          main="HiSat2+Salmon",
+                          annotation_col=col.anno, 
+                          annotation_colors=my.color, 
+                          cluster_cols=F,
+                          cluster_rows=F,
+                          show_colnames=F)
+
+  cph1<-ComplexHeatmap::pheatmap(my.mat2,
+                                 annotation_col=col.anno, 
+                                 annotation_colors=my.color, 
+                                 cluster_cols=F,
+                                 cluster_rows=F,
+                                 show_colnames=F,
+                                 border_color=NA,
+                                 fontsize=12,
+                                 name="log2(count)",
+                                 row_title="\nHiSat2+Salmon",
+                                 row_title_gp = gpar(fontsize = 20),
+  )
+```
+
+## SI.Text.Fig1D - Heatmap of chrY (Salmon SA mode)
+```{r SI.T.Fig1D}
+  ## Heatamp of TPM using `Salmon (SA mode)` (based on 10M)
+  li.TPM[["Salmon"]][["TPM"]] %>% dim # 59354 genes x 100 samples
+
+  li.TPM[["Salmon"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev # count of 42 chrY genes
+  filter.g3<-li.TPM[["Salmon"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev >0 # filter for 42 chrY genes with count >0
+  this.gene3<-(li.TPM[["Salmon"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev)[filter.g3] %>% names # n=16 genes (out of 42) >0 count 
+  this.sample3<-li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums %>% sort %>% rev %>% names # 100 sample names
+  filter.s3<-li.TPM[["Salmon"]][["counts"]][this.gene3,] %>% colSums %>% sort %>% rev >0 # samples with count>0 
+  #(li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums %>% sort %>% rev)[filter.s3] # n=38 samples with count>0 (predicted as Male)
+  predicted.male3<-(li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums %>% sort %>% rev)[filter.s3] %>% names # n=38 samples with count>0 (predicted as Male)
+
+  my.mat3<-log2(li.TPM[["Salmon"]][["counts"]][this.gene3,this.sample3]+1)
+  rownames(my.mat3)<-gr.ensg[this.gene3]$gene_name
+
+  col.anno3<-mat.samples[this.sample3,c("GA","Sex"),drop=F]
+  col.anno3$"Predicted Sex"<-ifelse(this.sample3 %in% predicted.male3,"Male","Female")
+  col.anno3<-col.anno3[,c("Predicted Sex","Sex","GA")]
+
+
+  ph3<-pheatmap::pheatmap(my.mat3,
+                          main="Salmon (SA mode)",
+                          annotation_col=col.anno3, 
+                          annotation_colors=my.color, 
+                          cluster_cols=F,
+                          cluster_rows=F,
+                          show_colnames=F)
+
+  cph3<-ComplexHeatmap::pheatmap(my.mat3,
+                                 annotation_col=col.anno3, 
+                                 annotation_colors=my.color, 
+                                 cluster_cols=F,
+                                 cluster_rows=F,
+                                 show_colnames=F,
+                                 border_color=NA,
+                                 fontsize=12,
+                                 name="log2(count)",
+                                 row_title="\nSalmon (SA mode)",
+                                 row_title_gp = gpar(fontsize = 20),
+  )
+
+  # via ComplexHeatmap
+  cph3<-ComplexHeatmap::pheatmap(my.mat3,
+                                 annotation_col=col.anno3, 
+                                 annotation_colors=my.color, 
+                                 cluster_cols=F,
+                                 cluster_rows=F,
+                                 show_colnames=F,
+                                 border_color=NA,
+                                 fontsize=12,
+                                 name="log2(count)",
+                                 row_title="\nSalmon (SA mode)",
+                                 row_title_gp = gpar(fontsize = 20),
+                                 heatmap_legend_param = list(
+                                                            title_gp=gpar(fontsize=13,fontface="bold"),
+                                                            labels_gp=gpar(fontsize=11),
+                            annotation_legend_param = list(title_gp=gpar(fontsize=13,fontface="bold"),labels_gp = gpar(fontsize = 11))
+                                )
+  )
+
+
+
+```
+
+## SI.Text.Fig1C - Heatmap of chrY (HiSat2+Salmon and Salmon SA mode)
+```{r SI.T.Fig1C}
+if(F){
+  cowplot::plot_grid(ph1$gtable, ph3$gtable, ncol=1, labels="AUTO", label_size=27)
+  cowplot::plot_grid(NULL,ph1$gtable, NULL,ph3$gtable, ncol=1, labels=c("A","","B",""), label_size=27,rel_heights=c(0.1,1,0.1,1))
+}
+
+
+#
+if(T){
+  #
+  cph1 %v% cph3
+  draw(cph1 %v% cph3, ht_gap=unit(.7,"cm"), auto_adjust=F)
+  p1.chrY.hm<-draw(cph1 %v% cph3, main_heatmap="log2(count)",merge_legend=T, ht_gap=unit(.7,"cm"), auto_adjust=F) %>% grid.grabExpr
+  cowplot::plot_grid(p1.chrY.hm, labels=c("C"), ncol=1, label_size=27)  # dow not work
+
+  # merge SI.Fig1A + SI.Fig1B + SI.FigCD
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1C.pdf", width=11, height=14, title="Abundance of chrY")
+  #cowplot::plot_grid(p1.chrY.hm, labels=c("C"), ncol=1, label_size=27)  # dow not work
+  draw(cph1 %v% cph3, main_heatmap="log2(count)", ht_gap=unit(.7,"cm"), auto_adjust=F)
+  grid.text(label="C",gp=gpar(fontsize=27,fontface="bold"),x=0.02,y=.99,just="top")
+  dev.off()
+
+  ##
+  #convert Figures/Suppl/cfRNA.Suppl.Text.Fig1AB.pdf Figures/Suppl/cfRNA.Suppl.Text.Fig1C.pdf +append +repage Figures/Suppl/cfRNA.Suppl.Text.Fig1ABC.pdf
+
+  ##
+  p1.chrY.left<-cowplot::plot_grid(p1.chrY, p1.chrY.con, labels="AUTO", ncol=1, label_size=27, align="v", axis="l")
+
+  # merge SI.Fig1A + SI.Fig1B + SI.FigCD
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1.pdf", width=22, height=14, title="Abundance of chrY")
+  cowplot::plot_grid(p1.chrY.left, p1.chrY.hm, labels=c("","C"), ncol=2, label_size=27) 
+  dev.off()
+}
+```
+
+## SI.Text.Fig1D - Trim vs Not trim
+```{r SI.T.Fig1D}
+  dl.chrY.TPM %>% names
+
+  # load the TPM based om 10M-ds dataset
+  load("RData/li.TPM.10M.trim.RData")
+  li.TPM[["Salmon"]][["TPM"]] %>% dim # 59354 genes x 100 samples
+
+  dt.trim.10M<-data.table(
+      `Type`="Salmon (SA mode)",
+      `SampleID`=li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums %>% names,
+      `Counts`=li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums, 
+      `TPM`=li.TPM[["Salmon"]][["TPM"]][this.gene,] %>% colSums 
+      )
+  # add Sex and GA
+  dt.trim.10M<-merge(dt.trim.10M, dt.samples[,.(SampleID,GA,Sex,pn_female)])
+
+  dt.trim.10M[,`Predicted Sex`:=ifelse(TPM>0, "Male","Female"),Type]
+  dt.trim.10M$Sex<-factor(dt.trim.10M$Sex, level=c("Male","Female"))
+  dt.trim.10M$`Predicted Sex`<-factor(dt.trim.10M$`Predicted Sex`, level=c("Male","Female"))
+
+  dt.chrY.trim<-rbind(
+        dl.chrY.TPM[["10M"]][Type=="Salmon (SA mode)"][,Trim:="No"],
+        dt.trim.10M[,Trim:="Yes"]
+        )
+  ## Number of false positives: chrY signal detected from females 
+  dt.chrY.trim[,.(Trim,Sex,`Predicted Sex`)] %>% ftable
+
+  ##
+  ## Read counts by trim or not
+  dt.bar<-merge(
+    dl.chrY.TPM[["10M"]][Type=="Salmon (SA mode)",.(SampleID,GA=gsub(" weeks","wk",GA),Sex,Counts,TPM)], # no-trim
+    dt.trim.10M[Type=="Salmon (SA mode)",.(SampleID,GA,Sex,Counts,TPM)], # trim
+    by=c("SampleID","Sex","GA")
+  )
+  cor.test(~Counts.x + Counts.y, dt.bar)
+  dt.bar[Counts.x>Counts.y] # no-trim > trim
+  dt.bar[Counts.x<Counts.y] # no-trim < trim
+  dt.bar[Sex=="Female" & Counts.x<Counts.y] # more counts for Trimmed Salmon
+
+  ##
+  my.limit.F<-dt.bar[Sex=="Female",max(Counts.x,Counts.y)]  %>% ceiling
+  p1.chrY.F<-ggplot(dt.bar[Sex=="Female"], aes(Counts.x,Counts.y)) + 
+  #geom_point(data=dt.bar[Sex=="Female" & Counts.x==0 & Counts.y==0], col="grey20",size=5, alpha=.9, shape=21) +
+  #geom_point(data=dt.bar[Sex=="Female" & Counts.x!=0 & Counts.y!=0], size=5, position=position_jitter(width=0.02,height=0.02),shape=21) +
+  geom_point(data=dt.bar[Sex=="Female"], size=5, position=position_jitter(width=0.02,height=0.02),shape=21) +
+  coord_fixed(xlim=c(0,my.limit.F),ylim=c(0,my.limit.F)) +
+  facet_grid(Sex~GA) +
+  labs(x="Read Count (No trimmed reads)", y="Read Count (trimmed reads)") +
+  theme_Publication() + theme(panel.border = element_rect(colour = "black"))
+
+#
+  my.limit.M<-dt.bar[Sex=="Male",max(Counts.x,Counts.y)]  %>% ceiling
+  p1.chrY.M<-ggplot(dt.bar[Sex=="Male"], aes(Counts.x+1,Counts.y+1)) + 
+  geom_point(data=dt.bar[Sex=="Male"], size=5, position=position_jitter(width=0.02,height=0.02),shape=21) +
+  scale_x_continuous(trans = scales::log2_trans(),
+                     breaks = scales::trans_breaks("log2",function(x) 2^x),
+                     labels = scales::trans_format("log2", math_format(2^.x)) ) +
+  scale_y_continuous(trans = scales::log2_trans(),
+                     breaks = scales::trans_breaks("log2",function(x) 2^x),
+                     labels = scales::trans_format("log2", math_format(2^.x)) ) +
+  coord_fixed() + 
+  facet_grid(Sex~GA) +
+  labs(x="Read Count (No trimmed reads)", y="Read Count (trimmed reads)") +
+  theme_Publication() + theme(panel.border = element_rect(colour = "black"))
+
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1D.pdf", width=22, height=4.3, title="Trim vs No trim")
+  cowplot::plot_grid(p1.chrY.F, p1.chrY.M, nrow=1, align="h", axis="bt", labels=c("D",""),label_size=27)
+  dev.off()
+
+  #convert Figures/Suppl/cfRNA.Suppl.Text.Fig1ABC.pdf Figures/Suppl/cfRNA.Suppl.Text.Fig1D.pdf -append +repage Figures/Suppl/cfRNA.Suppl.Text.Fig1.pdf
+
+  my.limit<-dt.bar[,max(Counts.x,Counts.y)]  %>% ceiling
+  p1.chrY.trim<-ggplot(dt.bar, aes(Counts.x+1,Counts.y+1)) + 
+  geom_point(data=dt.bar, size=5, position=position_jitter(width=0.2,height=0.2),shape=21) +
+  scale_x_continuous(trans = scales::log2_trans(),
+                     breaks = scales::trans_breaks("log2",function(x) 2^x),
+                     labels = scales::trans_format("log2", math_format(2^.x)),
+                     limits=c(.5,my.limit*2)) +
+  scale_y_continuous(trans = scales::log2_trans(),
+                     breaks = scales::trans_breaks("log2",function(x) 2^x),
+                     labels = scales::trans_format("log2", math_format(2^.x)),
+                     limits=c(.5,my.limit*2)) +
+  #coord_fixed() + 
+  facet_grid(Sex~GA,scales="free_x") +
+  labs(x="Sum of read count (No trimmed reads)", y="Sum of read count (trimmed reads)") +
+  theme_Publication() + theme(panel.border = element_rect(colour = "black"))
+
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1D.v2.pdf", width=11, height=7, title="Trim vs No trim")
+  cowplot::plot_grid(p1.chrY.trim, labels=c("D"),label_size=27)
+  dev.off()
+
+```
+
+# Supplementary Tables
+
+```{r fun_write_excel}
+### Save in EXCEL
+library(xlsx)
+library(magrittr)
+
+write.xlsxN <- function (x,file){
+  stopifnot(is.list(x))
+  require(xlsx, quietly = TRUE)
+  objnames <- names(x)
+  nobjects <- length(x)
+  for (i in 1:nobjects) {
+      if (i == 1)
+          write.xlsx(x[[i]], file, sheetName = objnames[i])
+      else write.xlsx(x[[i]], file, sheetName = objnames[i],
+          append = TRUE)
+  }
+}
+
+dl.ST<-list() # a list of data.table
+```
+
+## Suppl Table S1
+```{r suppl.t.s1}
+  # Ask Ulla!
+#dl.ST[["ST1"]]
+```
+
+## Suppl Table S2
+```{r suppl.t.s2}
+# 28wk edgeR result (5898 DEGs)
+  load("RData/dl.res.edgeR.preterm.POPS-2022.GRCh38.88.RData") # edgeR result
+  dl.ST[["ST2"]]<-dl.res.edgeR[["28wk"]][BH<0.05,.(Gene=gene_id,log2FC=logFC,unshrunk.logFC,logCPM,Pvalue=PValue,BH,BY)]
+
+```
+
+## Suppl Table S3
+```{r suppl.t.s3}
+# 28wk DESeq2 result (1445 DEGs)
+  load("RData/dl.resLFC.preterm.POPS-2022.GRCh38.88.RData") # DESeq2 result
+  dl.ST[["ST3"]]<-dl.resLFC[["28wk"]][BH<0.05,.(Gene=gene_id,baseMean,log2FC=log2FoldChange,logFC.SE=lfcSE,Pvalue=pvalue,BH,BY)]
+```
+
+## Suppl Table S4
+```{r suppl.t.s4}
+# Supplementary Table 4 (results from logistic regression) shows the 8,054 genes from the univariable logistic regress
+  load("RData/dl.logregZ.preterm.POPS-2022.GRCh38.88.RData") # univariable logistic regression
+  dl.ST[["ST4"]]<-dl.logregZ[["28wk"]][padj.BH<0.05,.(Gene=gene_id,OR=odds,OR.lo=odds_lo,OR.hi=odds_hi,Pvalue=pval,padj.BH,padj.BY,auc,auc_lo,auc_hi,AIC,BIC)]
+```
+
+## Suppl Table S5
+```{r suppl.t.s5}
+  # Supplementary Table 5 – the 345 genes
+  venn.top1pctZ<-list(`DESeq2`=dl.resLFC[["28wk"]][order(pvalue)][1:151]$gene_id,
+                    `edgeR`=dl.res.edgeR[["28wk"]][order(PValue)][1:151]$gene_id,
+                  `AUC`=dl.logregZ[["28wk"]][order(-auc)][1:151]$gene_id,
+                  `AIC`=dl.logregZ[["28wk"]][order(AIC)][1:151]$gene_id
+                  )
+  dt.venn.top1pctZ<-lapply(names(venn.top1pctZ), function(i) data.table(i,venn.top1pctZ[[i]])) %>% rbindlist %>% dcast.data.table(V2~i, fun=length)
+
+  dt.345<-merge(dl.logregZ[["28wk"]], dl.res.edgeR[["28wk"]])[gene_id %in% dt.venn.top1pctZ$V2,.(gene_id,
+                                                                auc,auc_lo,auc_hi,
+                                                                odds,odds_lo,odds_hi,pval,
+                                                                AIC,BIC,logFC,logCPM)]
+  # add baseMan and FC from DESeq2
+  dt.345<-merge(dt.345, dl.resLFC[["28wk"]][,.(gene_id,baseMean,log2FoldChange)])[order(-auc)]
+
+  dl.ST[["ST5"]]<-dt.345
+```
+
+## Suppl Table S6
+```{r suppl.t.s6}
+  # Supplementary Table 6 – the summary of 5-fold CV across 11 ML methods
+  load("RData/dl.kcv.result.core17.RData")
+  lapply(dl.kcv.result, nrow)
+  xtabs(~fold+method, dl.kcv.result[["F6"]])
+  dl.kcv.result[["F6"]][method=="LASSO"]
+
+  ## Summary by the method & predictors
+  dl.ST[["ST6"]]<-lapply(names(dl.kcv.result), function(NF) 
+      dl.kcv.result[[NF]][,.(NF=substr(NF,2,3),.N, 
+      mean_AUC=mean(AUC_test)/100, mean_AUC_lo=mean(AUC_test_lo)/100, mean_AUC_hi=mean(AUC_test_hi)/100
+      ),method][,Rank:=frank(-mean_AUC)][order(Rank)]
+  ) %>% rbindlist 
+```
+
+## Suppl Table S7
+```{r suppl.t.s7}
+  # Supplementary Table 7 – the final training models from ENet and LASSO
+
+  load("RData/dl.enet.result.core17.RData")
+
+  dl.ST[["ST7"]]<-rbind(
+    (lapply(names(dl.enet.result), function(FN)
+      dl.enet.result[[FN]][grepl("ENet",methods) & fold=="28wk(preterm)",-c("fold")][,`:=`(Method="ENet",`N`=substr(FN,2,nchar(FN)) %>% as.integer)]
+    ) %>% rbindlist)[,-"methods"],
+    (lapply(names(dl.enet.result), function(FN)
+      dl.enet.result[[FN]][grepl("LASSO",methods) & fold=="28wk(preterm)",-c("fold")][,`:=`(Method="LASSO",`N`=substr(FN,2,nchar(FN)) %>% as.integer)]
+    ) %>% rbindlist)[,-"methods"]
+    )
+```
+
+## Write to Excel 
+```{r suppl.t.excel1}
+sapply(dl.ST,nrow)
+
+write.xlsxN(x=dl.ST, file="Tables/Suppl/SI.Tables.xlsx")
+
+write.xlsx2(dl.ST[[1]], file="Tables/Suppl/SI.Tables.2.xlsx")
+write.xlsx2(dl.ST[[2]], file="Tables/Suppl/SI.Tables.3.xlsx")
+write.xlsx2(dl.ST[[3]], file="Tables/Suppl/SI.Tables.4.xlsx")
+write.xlsxN(dl.ST[4:6], file="Tables/Suppl/SI.Tables.5-7.xlsx")
+```
+
+# Discussions
+
+## LEP & PAPPA2 Abundance
+```{r dis_lep_pappa2}
+  load("RData/dt.count.preterm.POPS-2022.GRCh38.88.RData")
+
+#
+  dt.count[geneName %in% c("LEP","PAPPA2"),.(Mean_cnt=mean(Count),SD_cnt=sd(Count)),.(GA,geneName)]
+```
+
+
+# EGA
+
+## `samples.csv` for EGA
+```{r ega.samples}
+  dt.pops<-  rbind(
+  readxl::read_excel("data/cfRNA_samples_preterm_POPSID.xlsx") %>% data.table,
+  readxl::read_excel("data/cfRNA_samples_term_POPSID.xlsx") %>% data.table,
+  fill=T
+  )
+  dt.pops.samples<-merge(dt.meta.info, dt.pops[,.(Sample_number,POPSID)])
+  dt.pops.samples$POPSID<-as.integer(dt.pops.samples$POPSID)
+  dt.pops.samples[order(POPSID)]
+  dt.pops.samples[,.N,.(Type,POPSID)][order(-N)] # n=195 patients
+  dt.pops.samples[POPSID==682]
+
+  merge(dt.pops.samples[POPSID==682], dt.samples[,.(Type,IlluminaID,SampleID)], by=c("Type","IlluminaID"))
+  merge(dt.pops.samples[POPSID==682], dt.samples[,.(Type,IlluminaID,SampleID,Sex,Condition)], by=c("Type","IlluminaID"))[,.N,.(SampleID,GA,POPSID,Type,FetalSex=Sex,Condition)]
+
+  # alias,title,description,biological_sex,subject_id,phenotype,biosample_id,case_control,organism_part,cell_line
+  (dt.foo<-merge(dt.pops.samples, dt.samples, by=c("Type","IlluminaID"))[,.N,.(SampleID,POPSID,Condition,gestational_age=GA.x,Type,fetal_sex=Sex)][,.(alias=SampleID,title="Maternal plasma",description="Maternal plasma",biological_sex="female",subject_id=POPSID,phenotype=ifelse(Condition=="Case","Pre-eclampsia with fetal growth restriction","control"),biosample_id=NA,case_control=ifelse(Condition=="Case","case","control"),organism_part="Human",cell_line=NA,gestational_age,fetal_sex)])
+
+  fwrite(dt.foo,file="data/samples.csv")
+
+```
+
+## `runs.csv` for EGA
+```{sh ega.runs}
+echo -e "sample,file1,file2" > data/runs.csv; 
+paste -d","  <(for i in `cat data/FASTQ.list.r1.txt`; do FQ=`echo $i| cut -d"," -f2 | cut -d'/' -f7`; ID1=`echo $i | cut -d"," -f1`; echo -e "$ID1,./$FQ"; done) <(for i in `cat data/FASTQ.list.r2.txt`; do FQ=`echo $i| cut -d"," -f2 | cut -d'/' -f7`; ID1=`echo $i | cut -d"," -f1`; echo -e "$ID1,./$FQ"; done) | grep -v "PPC-" >> data/runs.csv
+```
+
+
+
+
+
+
+
+
+
+
+
+# Old figures - DO NOT USE
+
+## Figure 2A - Subset selection (LPOCV)
+```{r fig2.subset.selection, fig.cap="Fig2A"}
+  dt.foo<-dt.Best10[N!=1 & Measure=="LPOCV"]   %>% melt.data.table( id.var=c("N","Genes*"), measure.vars=c("AIC","BIC","AUC","Boot","KFCV","LPOCV"),variable.name="Measure")
+  dt.foo$Measure<-factor(dt.foo$Measure,level=c("AUC","Boot","KFCV","LPOCV","BIC","AIC"))
+
+  #dt.foo[Measure=="LPOCV"][order(-value)]
+  #dt.foo[Measure=="AUC"][order(-value)]
+
+  p2.ss<-ggplot(dt.foo[Measure %in% c("AIC","BIC","AUC","LPOCV")], aes(N,value,group=Measure)) +
+    geom_line(aes(col=Measure),size=1,alpha=.8) +
+    geom_point(size=2) +
+    scale_x_discrete(limits=2:10) +
+    scale_y_continuous(limits=c(0,105),expand=c(0,0)) + # ,breaks=seq(0,100,by=25)) +
+    scale_color_manual(values=cbPalette2) +
+    labs(x="Number of gene in the model",y="Score") +
+    theme_Publication() + theme(legend.position=c(.8,.2),
+                                legend.key = element_rect(fill = "transparent"),
+                                legend.background = element_rect(fill='transparent'),
+                                legend.box.background = element_rect(fill='transparent'))
+  print(p2.ss)
+```
+
+## Figure 2A - Subset selection (AUC+BIC+LPOCV)
+```{r fig2.subset.selection2, fig.cap="Fig2A - AUC+BIC+LPOCV"}
+  dt.foo<-dt.Best10[N!=1]   %>% melt.data.table( id.var=c("N","Measure","Genes*"), measure.vars=c("AIC","BIC","AUC","Boot","KFCV","LPOCV"),variable.name="Measurement")
+  dt.foo[,Measure:=paste0(Measure,"-based")]
+  dt.foo$Measure<-factor(dt.foo$Measure, level=c("BIC-based","AUC-based","LPOCV-based"))
+  dt.foo$Measurement<-factor(dt.foo$Measurement,level=c("AUC","Boot","KFCV","LPOCV","BIC","AIC"))
+
+  dt.foo[Measure=="LPOCV-based" & Measurement=="LPOCV"][order(-value)]
+  dt.foo[Measure=="BIC-based" & Measurement=="BIC"][order(value)]
+  dt.foo[Measure=="AUC-based" & Measurement=="AUC"][order(value)]
+
+  p2.ss2<-ggplot(dt.foo[Measurement %in% c("AIC","BIC","AUC","LPOCV")], aes(N,value,group=Measurement)) +
+    geom_line(aes(col=Measurement),size=1,alpha=.8) +
+    geom_point(size=2) +
+    scale_x_discrete(limits=2:10) +
+    scale_y_continuous(limits=c(0,105),expand=c(0,0)) + # ,breaks=seq(0,100,by=25)) +
+    scale_color_manual(values=cbPalette2) +
+    labs(x="Number of gene in the model",y="Score") +
+    facet_wrap(~Measure) +
+    theme_Publication() + theme(legend.position=c(.88,.2),
+                                legend.key = element_rect(fill = "transparent"),
+                                legend.background = element_rect(fill='transparent'),
+                                legend.box.background = element_rect(fill='transparent'))
+
+  pdf(file="Figures/cfRNA.SI.Fig1.pdf", width=11, height=6, title="SI Fig1: best subset criteria")
+  print(p2.ss2)
+  dev.off()
+
+  tiff(file="Figures/cfRNA.SI.Fig1.tiff", width=1100, height=500, title="SI Fig1: best subset criteria")
+  print(p2.ss2)
+  dev.off()
+```
+
+## Figure 2B- AUC/LPOCV of the validation datasets
+```{r fig2.in.val, fig.cap="Fig2B"}
+dt.WF2val2[Measure=="LPOCV"][order(-AUC)] # best 5 models based on AUC
+#dt.WF2val2[Measure=="LPOCV"][order(-LPOCV)][1:5] # best 5 models based on LPOCV
+
+dt.foo<-rbind(
+  dt.WF2val2[Measure=="LPOCV",.(N,Measure="LPOCV",GA,Score=LPOCV/100,lower=LPOCV_lo/100,upper=LPOCV_hi/100)],
+  dt.WF2val2[Measure=="LPOCV",.(N,Measure="AUC",GA,Score=AUC/100,lower=AUC_lo/100,upper=AUC_hi/100)]
+  )
+
+  p2.inval<-ggplot(dt.foo[Measure=="AUC"], aes(GA, Score)) + #, col=Measure)) +
+    geom_pointrange(aes(ymin=lower, ymax=upper),position=position_dodge(width=0.5)) +
+    #scale_color_manual(values=cbPalette2) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ylab("AUC") + xlab("Gestational age (validation dataset)") +
+    facet_wrap(~N) +
+    theme_Publication() + 
+    theme(axis.text.x = element_text(angle = 45, hjust=1), 
+          legend.position="")
+
+  print(p2.inval)
+```
+
+## Figiure 2C- The AUC of selected top predictors
+```{r fig2.in.val.selected.auc, fig.cap="AUC of selected predictors in the discovery & validation datasets"}
+  #dt.top.predictor2.WF2[,.N,predictor]
+
+  dt.bar<-dt.top.predictor2.WF2[predictor %in% c("LEP","PAPPA2","PAPPA2,LEP","DMTN,PAPPA2,SYNM")]
+  dt.bar[,dataset:=ifelse(dataset=="preterm","Discovery","Validation")]
+
+  dt.foo<-rbind(
+    dt.bar[,.(Measure="AUC",predictor,dataset,GA,Score=AUC/100,lower=AUC_lo/100,upper=AUC_hi/100)],
+    dt.bar[,.(Measure="LPOCV",predictor,dataset,GA,Score=LPOCV/100,lower=LPOCV_lo/100,upper=LPOCV_hi/100)]
+  )
+
+  dt.foo[Measure=="AUC" & dataset=="Validation"]
+
+  p2.selected.auc<-ggplot(dt.foo[Measure=="AUC"],aes(predictor,Score)) + #,col=Measure)) +
+    geom_pointrange(aes(ymin=lower, ymax=upper),position=position_dodge(width=0.5)) +
+    #scale_color_manual(values=cbPalette2) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    scale_x_discrete(limits=c("LEP","PAPPA2","PAPPA2,LEP","DMTN,PAPPA2,SYNM")) +
+    xlab("Predictors") + ylab("AUC") +
+    facet_grid(dataset~GA) +
+    theme_Publication() +
+    theme(axis.text.x = element_text(angle = 45, hjust=1), 
+          legend.position="",
+          panel.border = element_rect(colour = "black"))
+  print(p2.selected.auc)
+```
+
+## Fig 2D - The AUC of selected top predictors (Munchel)
+```{r fig2.munchel, fig.cap="The AUC of Munchel-2020 dataset"}
+  #dt.top.predictor2.munchel.WF2[,.N,predictor]
+
+  dt.foo<-dt.top.predictor2.munchel.WF2[predictor %in% c("LEP","PAPPA2","PAPPA2,LEP","DMTN,PAPPA2,SYNM"),.(predictor,AUC,AUC_lo,AUC_hi)]
+  dt.foo[,dataset:="Munchel"]
+  dt.foo[,GA:="23-34wk"]
+  dt.foo[order(-AUC)]
+
+  p2.munchel<-ggplot(dt.foo, aes(predictor,AUC/100)) +
+    geom_pointrange(aes(ymin=AUC_lo/100,ymax=AUC_hi/100),position=position_dodge(width=.5)) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    scale_color_manual(values=cbPalette) +
+    scale_x_discrete(limits=c("LEP","PAPPA2","PAPPA2,LEP","DMTN,PAPPA2,SYNM")) +
+    ylab("") + xlab("") +
+    facet_grid(dataset~.) +
+    theme_Publication() +
+    theme(axis.text.x = element_text(angle = 45, hjust=1),
+          panel.border = element_rect(colour = "black"))
+  print(p2.munchel)
+```
+
+## Fig 2E - Individual ROC curve
+```{r fig2.roc.curve, fig.cap="The ROC curves"}
+  # dt.roc.data from WF2.extra.bits2.Rmd
+  p2.roc.curve<-ggplot(dt.roc.data, aes(1-specificity,sensitivity)) +
+    geom_line() +
+    geom_text(data=dt.roc,size=3.6,
+              mapping=aes(x=.55,y=.5,label=paste0("AUC=",round(roc,3)," (",round(roc_lo,3),", ",round(roc_hi,3),")"))
+              ) +
+    ylab("Sensitivity") + xlab("1-Specificity") +
+    facet_grid(geneName~dataset) +
+    theme_Publication() + theme(axis.text.x = element_text(angle = 45, hjust=1), panel.border = element_rect(colour = "black"))
+  print(p2.roc.curve)
+```
+
+```{r fig2.merge, eval=F}
+## Final Figure2
+  p2.top<-cowplot::plot_grid(p2.ss, p2.inval, labels=c("A","B"),rel_widths=c(1,1.2),label_size=27)
+  p2.bottom.right<-cowplot::plot_grid(NULL,p2.munchel,labels=c("","D"),ncol=1,label_size=27,rel_heights=c(1,1.95))
+  p2.bottom<-cowplot::plot_grid(p2.selected.auc, p2.bottom.right, labels=c("C",""),label_size=27,rel_widths=c(2.3,1))
+
+  pdf(file="Figures/cfRNA.Fig2.pdf", width=11, height=12, title="Fig2: model selection and validation")
+  cowplot::plot_grid(p2.top, p2.bottom,ncol=1,labels=c("",""),label_size=27,rel_heights=c(1,1.2),align="hv",axis='l')
+  dev.off()
+
+  pdf(file="Figures/cfRNA.Fig2.v2.pdf", width=11, height=17, title="Fig2: model selection and validation")
+  cowplot::plot_grid(p2.top, p2.bottom, p2.roc.curve, nrow=3,labels=c("","","E"),label_size=27,rel_heights=c(1,1.2,1) )
+  dev.off()
+
+  tiff(file="Figures/cfRNA.Fig2.tiff", width=1100, height=1700,title="Fig1: the 17 core genes")
+  cowplot::plot_grid(p2.top, p2.bottom, p2.roc.curve, nrow=3,labels=c("","","E"),label_size=27,rel_heights=c(1,1.2,1) )
+  dev.off()
+
+  ##
+  # new p2.ss2
+  ##
+  p2.middle<-cowplot::plot_grid(p2.inval,p2.selected.auc,labels=c("B","C"),nrow=1,rel_widths=c(1,1.2))
+```
+
+# Figure 3
+
+## Figure 3A - Venn diagram of DEGs changed by GA 
+```{r fig3A, fig.cap="Fig3A"}
+  myRData="RData/dl.DEG.GA.control.term.POPS-2022.GRCh38.88.RData"
+  load(myRData)
+
+  dl.DEG.GA[["20wk-12wk"]][gene_id=="LEP"]
+  dl.DEG.GA[["28wk-20wk"]][gene_id=="LEP"]
+  dl.DEG.GA[["36wk-28wk"]][gene_id=="LEP"]
+
+  venn.deg.ga<-list()
+  venn.deg.ga[["12-20wk"]]<-dl.DEG.GA[["20wk-12wk"]][BH<0.05]$gene_id
+  venn.deg.ga[["20-28wk"]]<-dl.DEG.GA[["28wk-20wk"]][BH<0.05]$gene_id
+  venn.deg.ga[["28-36wk"]]<-dl.DEG.GA[["36wk-28wk"]][BH<0.05]$gene_id
+  venn.deg.ga[["core\nDEG"]]<-top1pct.genesZ 
+
+  dt.venn.ga<-lapply(names(venn.deg.ga), function(i) data.table(i,venn.deg.ga[[i]])) %>% rbindlist %>% dcast.data.table(V2~i, fun=length)
+  setnames(dt.venn.ga,"V2","Gene")
+  dt.venn.ga[Gene %in% top1pct.genesZ]
+
+  p3.venn<-ggvenn::ggvenn(venn.deg.ga,fill_color=rep("grey100",length(venn.deg.ga)),set_name_size=6,text_size=6,stroke_size=.7,show_percentage=FALSE)
+  #p3.venn + annotate(x=,y=)
+```
+
+## Figure 3B - LEP + PAPPA2
+```{r fig3B, fig.cap="Fig3B"}
+  dt.foo<-rbind(
+    dt.cpmZ[geneName %in% c("LEP","PAPPA2"),.(dataset="Discovery",GA,Condition,geneName,logCPM,logCPMZ)],
+    dt.cpmZ.term[geneName %in% c("LEP","PAPPA2"),.(dataset="Validation",GA,Condition,geneName,logCPM,logCPMZ)]
+    )
+  dt.foo$Condition<-factor(dt.foo$Condition, level=c("Case","Control"))
+
+  p3.lep.pappa2<- ggplot(dt.foo, aes(GA, logCPM, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5,alpha=.8) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge(),alpha=.7) +
+    ylab("Count Per Million (log2-scale)") + xlab("Gestational Age (GA)") +
+    ggsci::scale_color_nejm() +
+    facet_grid(dataset~geneName) +
+    theme_Publication() +theme (panel.border = element_rect(colour = "black"),legend.position="top")
+
+  if(F){
+    ## Validation
+    # 12-20wk
+    dt.cpmZ.term[GA=="20wk" & geneName=="LEP",.(median(logCPM))] /
+    dt.cpmZ.term[GA=="12wk" & geneName=="LEP",.(median(logCPM))]
+
+    wilcox.test(dt.cpmZ.term[GA=="20wk" & geneName=="LEP"]$logCPM, dt.cpmZ.term[GA=="12wk" & geneName=="LEP"]$logCPM)$p.value
+
+    # 20-28wk
+    dt.cpmZ.term[GA=="28wk" & geneName=="LEP",.(median(logCPM))] /
+    dt.cpmZ.term[GA=="20wk" & geneName=="LEP",.(median(logCPM))]
+    wilcox.test(dt.cpmZ.term[GA=="20wk" & geneName=="LEP"]$logCPM, dt.cpmZ.term[GA=="28wk" & geneName=="LEP"]$logCPM)$p.value
+
+    # 20-28wk (case)
+    dt.cpmZ.term[GA=="20wk" & geneName=="LEP" & Condition=="Case",.(median(logCPM))] /
+    dt.cpmZ.term[GA=="28wk" & geneName=="LEP" & Condition=="Case",.(median(logCPM))] 
+    wilcox.test(dt.cpmZ.term[GA=="20wk" & geneName=="LEP" & Condition=="Case"]$logCPM, dt.cpmZ.term[GA=="28wk" & geneName=="LEP" & Condition=="Case"]$logCPM)$p.value
+
+    # 20-28wk (control)
+    dt.cpmZ.term[GA=="20wk" & geneName=="LEP" & Condition=="Control",.(median(logCPM))] /
+    dt.cpmZ.term[GA=="28wk" & geneName=="LEP" & Condition=="Control",.(median(logCPM))] 
+    wilcox.test(dt.cpmZ.term[GA=="20wk" & geneName=="LEP" & Condition=="Control"]$logCPM, dt.cpmZ.term[GA=="28wk" & geneName=="LEP" & Condition=="Control"]$logCPM)$p.value
+
+    #28-36wk
+    dt.cpmZ.term[GA=="28wk" & geneName=="LEP",.(median(logCPM))] /
+    dt.cpmZ.term[GA=="36wk" & geneName=="LEP",.(median(logCPM))]
+    wilcox.test(dt.cpmZ.term[GA=="28wk" & geneName=="LEP"]$logCPM, dt.cpmZ.term[GA=="36wk" & geneName=="LEP"]$logCPM)$p.value
+
+    ## Discovery
+    # 12-20wk
+    dt.cpmZ[GA=="20wk" & geneName=="LEP",.(median(logCPM))] /
+    dt.cpmZ[GA=="12wk" & geneName=="LEP",.(median(logCPM))]
+
+    wilcox.test(dt.cpmZ[GA=="20wk" & geneName=="LEP"]$logCPM, dt.cpmZ[GA=="12wk" & geneName=="LEP"]$logCPM)$p.value
+
+    # 20-28wk
+    dt.cpmZ[GA=="28wk" & geneName=="LEP",.(median(logCPM))] /
+    dt.cpmZ[GA=="20wk" & geneName=="LEP",.(median(logCPM))]
+    wilcox.test(dt.cpmZ[GA=="20wk" & geneName=="LEP"]$logCPM, dt.cpmZ[GA=="28wk" & geneName=="LEP"]$logCPM)$p.value
+    #
+
+    dt.cpmZ[GA=="20wk" & geneName=="LEP" & Condition=="Case",.(median(logCPM))] /
+    dt.cpmZ[GA=="28wk" & geneName=="LEP" & Condition=="Case",.(median(logCPM))] 
+    wilcox.test(dt.cpmZ[GA=="20wk" & geneName=="LEP" & Condition=="Case"]$logCPM, dt.cpmZ[GA=="28wk" & geneName=="LEP" & Condition=="Case"]$logCPM)$p.value
+  }
+```
+
+## Figure 3C - Diff (case-control) vs Diff (GA)
+```{r fig3C, fig.cap="Diff (case-control) vs Diff (GA)"}
+
+  dt.foo<-dt.diff.all
+  dt.foo[,dataset:=ifelse(dataset=="preterm","Discovery","Validation")]
+  dt.foo[,d_GA:=ifelse(d_GA=="20wk-12wk","12-20wk",ifelse(d_GA=="28wk-20wk","20-28wk","28-36wk"))]
+
+  (dt.t<-dt.foo[,.(.N,r_squared=summary(lm(Diff~Diff_GA))$r.squared,
+                      r_pval=coef(summary(lm(Diff~Diff_GA)))[2,4],
+                      coef=coef(summary(lm(Diff~Diff_GA)))[2,1],
+                       pearson=cor(Diff,Diff_GA,method="pearson"),
+                       pearson.pval=cor.test(Diff,Diff_GA,method="pearson")$p.value,
+                       spearman=cor(Diff,Diff_GA,method="spearman"),
+                       spearman.pval=cor.test(Diff,Diff_GA,method="spearman")$p.value),.(dataset,d_GA)])
+
+  foo<-lm(Diff~Diff_GA, data=dt.foo)
+  summary(foo)
+  coef(summary(foo))[2,4]
+  coef(summary(foo)) %>% class
+  broom::glance(foo)
+
+  label <- 'atop(This~goes~on~top,of~this~with~"11.1%")'
+  p3.diff<-ggplot(dt.foo, aes(Diff_GA, Diff)) +
+    geom_point(size=3,pch=21,alpha=.4) +
+    xlab("Difference by GA") + ylab("Difference by pregnancy outcome") +
+    geom_smooth(method="lm") +
+    ggrepel::geom_text_repel(
+                            data=dt.foo[geneName %in% c("LEP","PAPPA2")],
+                            aes(label=geneName),
+                            #box.padding = 0.5, max.overlaps = Inf,
+                            #direction='y',
+                            nudge_y=0.5, nudge_x=-0.5,
+                            size=5) +
+    geom_text(
+              data    = dt.t,
+              mapping = aes(x = 2, y = -2, label =paste('atop(R^2~','"',round(r_squared,2),'"',')')),
+              parse=T,
+              size=5,
+              ) +
+    facet_grid(dataset~d_GA) +
+    theme_Publication() +theme (panel.border = element_rect(colour = "black"))
+```
+
+## Merge Figre 3
+```{r fig3.merge, eval=F}
+
+  pdf(file="Figures/cfRNA.Fig3.pdf", width=12, height=15,title="Fig3")
+  p3.top<-cowplot::plot_grid(p3.venn, p3.lep.pappa2, nrow=1, labels="AUTO",label_size=27,rel_widths=c(1,1.1))
+  cowplot::plot_grid(p3.top, p3.diff, nrow=2,labels=c("","C"),label_size=27,rel_heights=c(1.1,1))
+  dev.off()
+
+  tiff(file="Figures/cfRNA.Fig3.tiff", width=1200, height=1500,title="Fig3")
+  p3.top<-cowplot::plot_grid(p3.venn, p3.lep.pappa2, nrow=1, labels="AUTO",label_size=27,rel_widths=c(1,1.2))
+  cowplot::plot_grid(p3.top, p3.diff, nrow=2,labels=c("","C"),label_size=27,rel_heights=c(1.1,1))
+  dev.off()
+
+# top panel only
+  pdf(file="Figures/cfRNA.Fig3AB.pdf", width=12, height=9,title="Fig3AB")
+  cowplot::plot_grid(p3.venn, p3.lep.pappa2, nrow=1, labels="AUTO",label_size=27,rel_widths=c(1,1.1))
+  dev.off()
+```

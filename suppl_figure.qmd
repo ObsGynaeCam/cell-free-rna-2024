@@ -1,0 +1,253 @@
+# Supplementary Text Figures {#sec-suppl-figure}
+
+This chapter demonstrates the `R` codes that make supplementary text figures shown in the paper. 
+Making the main figures are shown in @sec-main-figure.
+
+## Supplementary Text Figure A {#sec-si-figure-a}
+![](static/figure/cfRNA.SI.FigA.png)
+
+```{r }
+#| label: fig-si-a
+#| eval: false
+  lazyLoad("downsample.chrY.TPM_cache/beamer/load_ds_salmon_4b8dd727729fd0ae5deb423d69e7c16d") # dl.chrY.TPM and dl.stat
+
+  dt.ds.chrY <- lapply(names(dl.stat), function(DS) dl.stat[[DS]][,DS:=DS]) %>% rbindlist
+  dt.ds.chrY$DS<-factor(dt.ds.chrY$DS, level=c("1M","5M","10M"))
+  dt.ds.chrY[,GA:=gsub(" weeks","wk",GA)]
+  setnames(dt.ds.chrY, "Type", "Method")
+
+  p1.chrY<-ggplot(dt.ds.chrY, aes(Method,SumCount)) +
+  geom_rect(data = dt.ds.chrY[DS=="5M"],fill="grey60",xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf,alpha = 0.2) +
+  geom_bar(aes(fill=Method), stat="identity",width=.5, alpha=.7) +
+  ggsci::scale_fill_jama() +
+  facet_grid(Sex~DS+GA,scales="free") +
+  labs(y="Sum of read count on chrY genes") +
+  theme_Publication() +
+  theme(legend.position="top",
+        panel.border=element_rect(colour="black"),
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+  #
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1A.pdf", width=11, height=8, title="Abundance of chrY")
+  p1.chrY
+  dev.off()
+```
+
+## Supplementary Text Figure B {#sec-si-figure-b}
+![](static/figure/cfRNA.SI.FigB.png)
+
+```{r }
+#| label: fig-si-b
+#| eval: false
+  lazyLoad("downsample.chrY.TPM_cache/beamer/load_ds_salmon_4b8dd727729fd0ae5deb423d69e7c16d") # dl.chrY.TPM and dl.stat
+
+  lapply(dl.chrY.TPM, function(i) i[,.(sum(Counts),sum(TPM))])
+
+  dl.chrY.TPM<-lapply(dl.chrY.TPM, function(DT) {
+                  #DT[Sex=="Male",Class:=ifelse(TPM>0,"TP","FN")]
+                  #DT[Sex=="Female",Class:=ifelse(TPM==0,"TN","FP")] 
+                  DT[,`Predicted Sex`:=ifelse(TPM>0, "Male","Female"),Type]
+                  DT$Sex<-factor(DT$Sex, level=c("Male","Female"))
+                  DT$`Predicted Sex`<-factor(DT$`Predicted Sex`, level=c("Male","Female"))
+                  DT 
+  }) 
+
+  #####################################
+  # Predictive performance by DS & GA #
+  #####################################
+  dt.chrY.con.ga<-lapply(names(dl.chrY.TPM), function(DS){
+    lapply(split(dl.chrY.TPM[[DS]], dl.chrY.TPM[[DS]]$GA), function(DT){
+    my.GA<-DT[,.N,GA]$GA
+
+    cm1<-caret::confusionMatrix(DT[Type=="HiSat2+Salmon"][["Predicted Sex"]], reference=DT[Type=="HiSat2+Salmon"][["Sex"]])
+    cm2<-caret::confusionMatrix(DT[Type=="Salmon (SA mode)"][["Predicted Sex"]], reference=DT[Type=="Salmon (SA mode)"][["Sex"]])
+
+    rbind(
+    data.table(DS=DS, GA=my.GA,Type="HiSat2+Salmon", Measure=names(cm1$byClass), Value=cm1$byClass),
+    data.table(DS=DS, GA=my.GA,Type="Salmon (SA mode)", Measure=names(cm2$byClass), Value=cm2$byClass)
+    )[Measure %in% c("F1","Precision", "Recall")]
+    }) %>% rbindlist 
+  }) %>% rbindlist 
+
+  dt.chrY.con.ga$DS<-factor(dt.chrY.con.ga$DS, level=c("1M","5M","10M"))
+  dt.chrY.con.ga[,GA:=gsub(" weeks","wk",GA)]
+  setnames(dt.chrY.con.ga, "Type", "Method")
+
+  p1.chrY.con<-ggplot(dt.chrY.con.ga, aes(Method,Value)) +
+  geom_rect(data = dt.chrY.con.ga[DS=="5M"],fill="grey60",xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf,alpha = 0.2) +
+  geom_bar(aes(fill=Method), stat="identity",width=.5, alpha=.7) +
+  ggsci::scale_fill_jama() +
+  facet_grid(Measure~DS+GA,scales="free") +
+  labs(y="Score") +
+  theme_Publication() +
+  theme(legend.position="none",
+        panel.border=element_rect(colour="black"),
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+
+  # merge SI.Fig1A + SI.Fig1B
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1AB.pdf", width=11, height=14, title="Abundance of chrY")
+  cowplot::plot_grid(p1.chrY, p1.chrY.con, labels="AUTO", ncol=1, label_size=27, align="v", axis="l")
+  dev.off()
+```
+
+## Supplementary Text Figure C {#sec-si-figure-c}
+![](static/figure/cfRNA.SI.FigC.png)
+
+```{r }
+#| label: fig-si-c
+#| eval: false
+  # load the transcript definition used in Salmon (SA)
+  load("RData/gr.ensg.Homo_sapiens.GRCh38.88.cdna.all.ncrna.fa.gz.RData") %>% system.time # isa GRanges
+  gr.ensg[seqnames(gr.ensg)=="Y" & gr.ensg$gene_biotype=="protein_coding",] # chrY protein-coding; n=42 
+  this.gene<-(gr.ensg[seqnames(gr.ensg)=="Y" & gr.ensg$gene_biotype=="protein_coding",] %>% names) # chrY protein-coding; n=42 (without the training version e.g. ENSG00000176679)
+
+  # load the TPM based om 10M-ds dataset
+  load("RData/li.TPM.10M.RData")
+  li.TPM[["Salmon_aln"]][["TPM"]] %>% dim # 62803 genes x 100 samples
+
+  ## Heatamp of TPM using `HiSat2+Salmon` (based on 10M)
+  li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev # count of 42 chrY genes
+  filter.g2<-li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev >0 # filter for 42 chrY genes with TPM >0
+  this.gene2<-(li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev)[filter.g2] %>% names # n=24 genes
+  this.sample2<-li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% colSums %>% sort %>% rev %>% names # n=100 samples sorted 
+  filter.s2<-li.TPM[["Salmon_aln"]][["counts"]][this.gene2,] %>% colSums %>% sort %>% rev >0 # filter for samples with TPM >0 
+  predicted.male2<-(li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% colSums %>% sort %>% rev)[filter.s2] %>% names # n=60 samples 
+
+  my.mat2<-log2(li.TPM[["Salmon_aln"]][["counts"]][this.gene2,this.sample2]+1)
+  rownames(my.mat2)<-gr.ensg[this.gene2]$gene_name
+
+  col.anno<-mat.samples[this.sample2,c("GA","Sex"),drop=F] # isa `data.frame`
+  col.anno$"Predicted Sex"<-ifelse(this.sample2 %in% predicted.male2,"Male","Female")
+  col.anno<-col.anno[,c("Predicted Sex","Sex","GA")]
+
+  GA.color<-ggsci::pal_jama("default",alpha=.9)(4)
+  names(GA.color)<-c("12wk","20wk","28wk","36wk")
+  my.color=list(
+      `Sex`=c(Female="hotpink",Male='skyblue'),
+      `Predicted Sex`=c(Female="hotpink3",Male='skyblue3'),
+      #`GA`=c("12wk"=cbPalette2[1],"20wk"=cbPalette2[2],"28wk"=cbPalette2[3],"36wk"=cbPalette2[4])
+      `GA`=GA.color
+  )
+
+  cph1<-ComplexHeatmap::pheatmap(my.mat2,
+                                 annotation_col=col.anno, 
+                                 annotation_colors=my.color, 
+                                 cluster_cols=F,
+                                 cluster_rows=F,
+                                 show_colnames=F,
+                                 border_color=NA,
+                                 fontsize=12,
+                                 name="log2(count)",
+                                 row_title="\nHiSat2+Salmon",
+                                 row_title_gp = gpar(fontsize = 20),
+  )
+
+  filter.g3<-li.TPM[["Salmon"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev >0 # filter for 42 chrY genes with count >0
+  this.gene3<-(li.TPM[["Salmon"]][["counts"]][this.gene,] %>% rowSums %>% sort %>% rev)[filter.g3] %>% names # n=16 genes (out of 42) >0 count 
+  this.sample3<-li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums %>% sort %>% rev %>% names # 100 sample names
+  filter.s3<-li.TPM[["Salmon"]][["counts"]][this.gene3,] %>% colSums %>% sort %>% rev >0 # samples with count>0 
+  #(li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums %>% sort %>% rev)[filter.s3] # n=38 samples with count>0 (predicted as Male)
+  predicted.male3<-(li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums %>% sort %>% rev)[filter.s3] %>% names # n=38 samples with count>0 (predicted as Male)
+
+  my.mat3<-log2(li.TPM[["Salmon"]][["counts"]][this.gene3,this.sample3]+1)
+  rownames(my.mat3)<-gr.ensg[this.gene3]$gene_name
+
+  col.anno3<-mat.samples[this.sample3,c("GA","Sex"),drop=F]
+  col.anno3$"Predicted Sex"<-ifelse(this.sample3 %in% predicted.male3,"Male","Female")
+  col.anno3<-col.anno3[,c("Predicted Sex","Sex","GA")]
+
+  # via ComplexHeatmap
+  cph3<-ComplexHeatmap::pheatmap(my.mat3,
+                                 annotation_col=col.anno3, 
+                                 annotation_colors=my.color, 
+                                 cluster_cols=F,
+                                 cluster_rows=F,
+                                 show_colnames=F,
+                                 border_color=NA,
+                                 fontsize=12,
+                                 name="log2(count)",
+                                 row_title="\nSalmon (SA mode)",
+                                 row_title_gp = gpar(fontsize = 20),
+                                 heatmap_legend_param = list(
+                                                            title_gp=gpar(fontsize=13,fontface="bold"),
+                                                            labels_gp=gpar(fontsize=11),
+                            annotation_legend_param = list(title_gp=gpar(fontsize=13,fontface="bold"),labels_gp = gpar(fontsize = 11))
+                                )
+  )
+
+
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1C.pdf", width=11, height=14, title="Abundance of chrY")
+  draw(cph1 %v% cph3, main_heatmap="log2(count)", ht_gap=unit(.7,"cm"), auto_adjust=F)
+  grid.text(label="C",gp=gpar(fontsize=27,fontface="bold"),x=0.02,y=.99,just="top")
+  dev.off()
+```
+
+## Supplementary Text Figure D {#sec-si-figure-d}
+![](static/figure/cfRNA.SI.FigD.png)
+
+```{r }
+#| label: fig-si-d
+#| eval: false
+  dl.chrY.TPM %>% names
+
+  # load the TPM based om 10M-ds dataset
+  load("RData/li.TPM.10M.trim.RData")
+  li.TPM[["Salmon"]][["TPM"]] %>% dim # 59354 genes x 100 samples
+
+  dt.trim.10M<-data.table(
+      `Type`="Salmon (SA mode)",
+      `SampleID`=li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums %>% names,
+      `Counts`=li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums, 
+      `TPM`=li.TPM[["Salmon"]][["TPM"]][this.gene,] %>% colSums 
+      )
+  # add Sex and GA
+  dt.trim.10M<-merge(dt.trim.10M, dt.samples[,.(SampleID,GA,Sex,pn_female)])
+
+  dt.trim.10M[,`Predicted Sex`:=ifelse(TPM>0, "Male","Female"),Type]
+  dt.trim.10M$Sex<-factor(dt.trim.10M$Sex, level=c("Male","Female"))
+  dt.trim.10M$`Predicted Sex`<-factor(dt.trim.10M$`Predicted Sex`, level=c("Male","Female"))
+
+  dt.chrY.trim<-rbind(
+        dl.chrY.TPM[["10M"]][Type=="Salmon (SA mode)"][,Trim:="No"],
+        dt.trim.10M[,Trim:="Yes"]
+        )
+  ## Number of false positives: chrY signal detected from females 
+  dt.chrY.trim[,.(Trim,Sex,`Predicted Sex`)] %>% ftable
+
+  ##
+  ## Read counts by trim or not
+  dt.bar<-merge(
+    dl.chrY.TPM[["10M"]][Type=="Salmon (SA mode)",.(SampleID,GA=gsub(" weeks","wk",GA),Sex,Counts,TPM)], # no-trim
+    dt.trim.10M[Type=="Salmon (SA mode)",.(SampleID,GA,Sex,Counts,TPM)], # trim
+    by=c("SampleID","Sex","GA")
+  )
+  cor.test(~Counts.x + Counts.y, dt.bar)
+  dt.bar[Counts.x>Counts.y] # no-trim > trim
+  dt.bar[Counts.x<Counts.y] # no-trim < trim
+  dt.bar[Sex=="Female" & Counts.x<Counts.y] # more counts for Trimmed Salmon
+
+  my.limit<-dt.bar[,max(Counts.x,Counts.y)]  %>% ceiling
+  p1.chrY.trim<-ggplot(dt.bar, aes(Counts.x+1,Counts.y+1)) + 
+  geom_point(data=dt.bar, size=5, position=position_jitter(width=0.2,height=0.2),shape=21) +
+  scale_x_continuous(trans = scales::log2_trans(),
+                     breaks = scales::trans_breaks("log2",function(x) 2^x),
+                     labels = scales::trans_format("log2", math_format(2^.x)),
+                     limits=c(.5,my.limit*2)) +
+  scale_y_continuous(trans = scales::log2_trans(),
+                     breaks = scales::trans_breaks("log2",function(x) 2^x),
+                     labels = scales::trans_format("log2", math_format(2^.x)),
+                     limits=c(.5,my.limit*2)) +
+  #coord_fixed() + 
+  facet_grid(Sex~GA,scales="free_x") +
+  labs(x="Sum of read count (No trimmed reads)", y="Sum of read count (trimmed reads)") +
+  theme_Publication() + theme(panel.border = element_rect(colour = "black"))
+
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1D.v2.pdf", width=11, height=7, title="Trim vs No trim")
+  cowplot::plot_grid(p1.chrY.trim, labels=c("D"),label_size=27)
+  dev.off()
+```

@@ -1,0 +1,554 @@
+---
+title: "Which pipeline to process the illumina plasma RNA-Seq data?"
+subtitle: "choose the one that does not show (or minimally show) chrY siginal from the female samples"
+author: |
+  | [Sung Gong](https://www.obgyn.cam.ac.uk/staff/research-staff/sung-gong/){target="_blank"}
+institute: |
+  | Department of Obstetrics & Gynaecology
+  | University of Cambridge
+date: "`r Sys.time()`"
+output: 
+    #beamer_presentation:
+    binb::metropolis:
+        slide_level: 2 
+        toc: false
+        fig_caption: true
+        keep_tex: false
+fontsize: 10pt
+classoption: aspectratio=149
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{xcolor}
+tables: true
+params:
+    disease: PE
+    GA: 36wk
+    width: 60
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+  #rmarkdown::render("downsample.chrY.TPM.Rmd")
+
+  source("libs/local.R") # global settings & functions 
+  source("libs/graphic.R") # Sung's graphic function
+
+  #options(width = params$width) # only for beamer output
+
+  knitr::opts_chunk$set(cache=TRUE, echo = FALSE, message=FALSE, warning=FALSE) # with caching
+
+  load("RData/gr.ensg.Homo_sapiens.GRCh38.88.cdna.all.ncrna.fa.gz.RData") %>% system.time # used in Salmon (SA) only: TODO; move do local.R?
+  this.gene<-(gr.ensg[seqnames(gr.ensg)=="Y" & gr.ensg$gene_biotype=="protein_coding",] %>% names) # chrY protein-coding; n=42 (without the training version e.g. ENSG00000176679)
+
+  #this.gene<-dt.tx2gene[chromosome_name=="Y" & gene_biotype=="protein_coding",.N,.(gene_id,hgnc_symbol)]$gene_id # n=45 (with the trailing version, e.g. ENSG00000176679.8)
+```
+
+## Background
+* There are multicopy chrY gene families (e.g. TSPY ~30 copies).
+* Most of chrY genes have their close homologues in chromosome X (e.g ZFX & ZFY), sharing up to ~99% identity.
+* [Godfrey et al.](https://pubmed.ncbi.nlm.nih.gov/32461223/) showed that [`Kallisto`](https://pubmed.ncbi.nlm.nih.gov/27043002/), a EM-based quantifcation software, outperformed two most widely used conventional methods (`TopHat2+featureCounts` and `TopHat2+Cufflinks`) in quantifying male specific chrY genes.
+* Recently, [Srivastava et al.](https://pubmed.ncbi.nlm.nih.gov/32894187/) introduced so called selective alignment (SA) of `Salmon` software package, another EM-based quantifcation tool, which outperformed existing methods, including `Kallisto`.
+* There are two ways to run `Salmon`: 1) the SA mode (detault), 2) the alignment mode.
+
+## Methods
+* 100 samples were randomly selected.
+* Sequencing files were downsampled to 1M, 5M and 10M reads per sample.
+* Following two pipelines were run
+  + Pipeline1: `HiSat2` + `Salmon`
+  + Pipeline2: `Salmon (SA mode)`
+* Read counts were summed over `r length(this.gene)` chrY protein coding genes.
+* The number of female samples with the chrY signals (i.e. false positives) were compared between the `HiSat2+Salmon` and `Salmon (SA mode)`
+```{r load_ds_salmon}
+  dl.chrY.TPM<-list()
+  all.ds<-c("1M","5M","10M")
+  dl.chrY.TPM<-lapply(all.ds, function(my.ds){
+    message(my.ds)
+    my.RData<-paste0("RData/li.TPM.",my.ds,".RData")
+    #my.RData<-paste0("RData/li.TPM.",my.ds,".RData.tximeta")
+    if(!file.exists(my.RData)){
+      my.slx<-ifelse(my.ds=="1M",paste0("SLX-ILM-Plasma2021-ds",my.ds,".Homo_sapiens.v2"),paste0("SLX-ILM-Plasma2021-ds",my.ds,".Homo_sapiens.v1"))
+      li.TPM<-prep_ds_salmon(my.slx) # set li.TPM. See `local.R` how `li.TPM` was set up
+      save(li.TPM, file=paste0("RData/li.TPM.",my.ds,".RData"))
+      message("li.TPM saved")
+    }
+    #paste0("loading ",my.RData) %>% print 
+    load(my.RData) %>% system.time
+
+    dt.chrY.TPM<-rbind(
+      data.table(
+        `Type`="Salmon (SA mode)",
+        `SampleID`=li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums %>% names,
+        `Counts`=li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums, 
+        `TPM`=li.TPM[["Salmon"]][["TPM"]][this.gene,] %>% colSums 
+        ),
+      data.table(
+        `Type`="HiSat2+Salmon",
+        `SampleID`=li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% colSums %>% names,
+        `Counts`=li.TPM[["Salmon_aln"]][["counts"]][this.gene,] %>% colSums,
+        `TPM`=li.TPM[["Salmon_aln"]][["TPM"]][this.gene,] %>% colSums 
+        )
+    )
+    # add Sex and GA
+    merge(dt.chrY.TPM, dt.samples[,.(SampleID,GA,Sex,pn_female)])
+  })
+  names(dl.chrY.TPM)<-all.ds
+
+  dl.stat<-lapply(dl.chrY.TPM, function(i) i[,.(.N,SumCount=sum(Counts),SumTPM=sum(TPM),MeanCount=mean(Counts),MeanTPM=mean(TPM)),.(GA,Sex,Type)][order(GA,Sex)])
+```
+
+## Number of samples by GA and sex among the 100 randomly selected samples
+```{r 100ds}
+  #li.TPM[["Salmon"]][["TPM"]] %>% colSums
+#xtabs(~GA+Sex, data=dt.samples) %>% addmargins
+xtabs(~GA+Sex, data=dt.samples[SampleID %in% dl.chrY.TPM[[1]]$SampleID]) %>% addmargins
+```
+
+# Mean read counts by GA and sex for the `r length(this.gene)` chrY genes
+## 1M
+```{r sum_count_1M}
+p1.sc<-ggplot(dl.stat[[1]], aes(Type,SumCount)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Sum of read count") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+p1.mc<-ggplot(dl.stat[[1]], aes(Type,MeanCount)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Mean read count") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+print(p1.mc)
+```
+
+## 5M
+```{r sum_count_5M}
+p2.sc<-ggplot(dl.stat[[2]], aes(Type,SumCount)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Sum of read count") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+p2.mc<-ggplot(dl.stat[[2]], aes(Type,MeanCount)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Mean read count") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+print(p2.mc)
+```
+
+## 10M
+```{r sum_count_10M}
+p3.sc<-ggplot(dl.stat[[3]], aes(Type,SumCount)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Sum of read count") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+p3.mc<-ggplot(dl.stat[[3]], aes(Type,MeanCount)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Mean read count") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+print(p3.mc)
+```
+
+# Mean TPM (transcript per million) GA and sex for the `r length(this.gene)` chrY genes
+
+## 1M
+```{r avg_tpm_1M}
+p1.st<-ggplot(dl.stat[[1]], aes(Type,SumTPM)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  #facet_grid(Sex~GA,margins="GA") +
+  ylab("Sum of TPM") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+p1.mt<-ggplot(dl.stat[[1]], aes(Type,MeanTPM)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Mean TPM") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+print(p1.mt)
+```
+
+## 5M
+```{r avg_tpm_5M}
+p2.st<-ggplot(dl.stat[[2]], aes(Type,SumTPM)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Sum of TPM") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+p2.mt<-ggplot(dl.stat[[2]], aes(Type,MeanTPM)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Mean TPM") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+print(p2.mt)
+```
+
+## 10M
+```{r avg_tpm_10M}
+p3.st<-ggplot(dl.stat[[3]], aes(Type,SumTPM)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Sum of TPM") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+p3.mt<-ggplot(dl.stat[[3]], aes(Type,MeanTPM)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Mean TPM") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1))+
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+print(p3.mt)
+```
+
+# Number of false positives: chrY signal detected from females 
+
+## Number of false positives: chrY signal detected from females 
+```{r FP_stat}
+#lapply(dl.chrY.TPM, function(i) i[TPM>0  & Sex=="Female"][order(Type,-TPM)]) 
+lapply(dl.chrY.TPM, function(i) i[TPM>0  & Sex=="Female",.(Type,GA)] %>% ftable)
+```
+
+# Confusion Matrix
+
+## 1M
+```{r confusion_table1M}
+library(pander)
+if(F){
+lapply(dl.chrY.TPM, function(i) i[TPM>0  & Sex=="Male",.(Type)] %>% ftable) # True positives
+lapply(dl.chrY.TPM, function(i) i[TPM==0  & Sex=="Female",.(Type)] %>% ftable) # True negatives
+
+lapply(dl.chrY.TPM, function(i) i[TPM>0  & Sex=="Female",.(Type)] %>% ftable) # False positives
+lapply(dl.chrY.TPM, function(i) i[TPM==0  & Sex=="Male",.(Type)] %>% ftable) # False negatives
+}
+
+dl.foo<-lapply(dl.chrY.TPM, function(i) {
+                 #i[Sex=="Male",Class:=ifelse(TPM>0,"TP","FN")]
+                 #i[Sex=="Female",Class:=ifelse(TPM==0,"TN","FP")] 
+                 i[,`Predicted Sex`:=ifelse(TPM>0, "Male","Female"),Type]
+}) 
+
+#lapply(dl.foo[c("1M","5M","10M")], function(i) i[,.(Type,`Predicted Sex`,Sex)] %>% ftable)
+dl.foo[["1M"]][,.(Type,`Predicted Sex`,Sex)] %>% ftable %>% pander(caption="Confusion matrix 1M",emphasize.strong.cols = 1, emphasize.strong.rows=1)
+```
+
+## 5M
+```{r confusion_table5M}
+dl.foo[["5M"]][,.(Type,`Predicted Sex`,Sex)] %>% ftable %>% pander(caption="Confusion matrix 5M",emphasize.strong.cols = 1, emphasize.strong.rows=1)
+```
+
+## 10M
+```{r confusion_table10M}
+dl.foo[["10M"]][,.(Type,`Predicted Sex`,Sex)] %>% ftable %>% pander(caption="Confusion matrix 10M",emphasize.strong.cols = 1, emphasize.strong.rows=1)
+```
+
+# Heatmaps
+
+## Heatamp of TPM using `HiSat2+Salmon` (based on 10M)
+```{r chrY_heatmap_hisat2_salmon}
+load("RData/li.TPM.10M.RData")
+filter.g<-li.TPM[["Salmon_aln"]][["TPM"]][this.gene,] %>% rowSums %>% sort %>% rev >0 # filter for gene with TPM >0
+this.gene2<-(li.TPM[["Salmon_aln"]][["TPM"]][this.gene,] %>% rowSums %>% sort %>% rev)[filter.g] %>% names # n=24 genes
+this.sample<-li.TPM[["Salmon_aln"]][["TPM"]][this.gene,] %>% colSums %>% sort %>% rev %>% names # n=100 samples sorted 
+filter.s<-li.TPM[["Salmon_aln"]][["TPM"]][this.gene2,] %>% colSums %>% sort %>% rev >0 # filter for gene with TPM >0 
+this.sample2<-(li.TPM[["Salmon_aln"]][["TPM"]][this.gene,] %>% colSums %>% sort %>% rev)[filter.s] %>% names # n=60 samples 
+
+my.mat<-li.TPM[["Salmon_aln"]][["TPM"]][this.gene2,this.sample]
+rownames(my.mat)<-gr.ensg[this.gene2]$gene_name
+
+col.anno<-mat.samples[this.sample,c("Sex"),drop=F]
+col.anno$"Any>0"<-ifelse(this.sample %in% this.sample2,"Yes","No")
+
+#pheatmap::pheatmap(my.mat,annotation_col=col.anno, annotation_colors=li.color[c("Sex","Any>0")], cluster_cols=F,cluster_rows=F)#,fontsize_number=0.8)
+ComplexHeatmap::pheatmap(my.mat,annotation_col=col.anno, annotation_colors=li.color[c("Sex","Any>0")], cluster_cols=F,cluster_rows=F)#,fontsize_number=0.8)
+```
+
+## Heatamp of TPM using `Salmon (SA mode)` (based on 10M)
+```{r chrY_heatmap}
+#li.TPM[["Salmon"]][["TPM"]][this.gene,] %>% rowSums %>% sort %>% rev 
+filter.g<-li.TPM[["Salmon"]][["TPM"]][this.gene,] %>% rowSums %>% sort %>% rev >0 # filter for gene with TPM >0
+this.gene3<-(li.TPM[["Salmon"]][["TPM"]][this.gene,] %>% rowSums %>% sort %>% rev)[filter.g] %>% names # n=16 genes
+this.sample<-li.TPM[["Salmon"]][["TPM"]][this.gene,] %>% colSums %>% sort %>% rev %>% names
+filter.s<-li.TPM[["Salmon"]][["TPM"]][this.gene3,] %>% colSums %>% sort %>% rev >0 # filter for gene with TPM >0 
+this.sample2<-(li.TPM[["Salmon"]][["TPM"]][this.gene,] %>% colSums %>% sort %>% rev)[filter.s] %>% names # n=38 samples
+
+my.mat2<-li.TPM[["Salmon"]][["TPM"]][this.gene3,this.sample]
+rownames(my.mat2)<-gr.ensg[this.gene3]$gene_name
+
+col.anno<-mat.samples[this.sample,c("Sex"),drop=F]
+col.anno$"Any>0"<-ifelse(this.sample %in% this.sample2,"Yes","No")
+
+#pheatmap::pheatmap(my.mat,annotation_col=col.anno, annotation_colors=li.color[c("Sex","Any>0")], cluster_cols=F,cluster_rows=F)#,fontsize_number=0.8)
+ComplexHeatmap::pheatmap(my.mat2,annotation_col=col.anno, annotation_colors=li.color[c("Sex","Any>0")], cluster_cols=F,cluster_rows=F)#,fontsize_number=0.8)
+```
+
+```{r sand2, eval=F}
+rownames(my.mat)[!rownames(my.mat) %in% rownames(my.mat2)] # 9 chrY genes detected in Salmon_aln only
+rownames(my.mat2)[!rownames(my.mat2) %in% rownames(my.mat)] # 1 chrY gene detected in Salmon only
+rownames(my.mat)[rownames(my.mat) %in% rownames(my.mat2)] # 15 chrY genes detected in both Salmon_aln  and Salmon
+```
+
+# Trim or not to trim
+```{r load_trimmed_salmon}
+  # Salmon only for trimmed fastq
+  my.RData="RData/li.TPM.10M.trim.RData"
+  if(!file.exists(my.RData)){
+    my.slx="SLX-ILM-Plasma2021-ds10M.Homo_sapiens.v2"
+    li.TPM<-prep_ds_salmon(my.slx,my.salmon.runs="Salmon") # NB, this run is only for `Salmon (SA)`
+    save(li.TPM, file=my.RData)
+    message("li.TPM saved")
+  }else{
+    load(my.RData)
+  }
+
+  dt.chrY.TPM<-data.table(
+      `Type`="Salmon (SA mode)",
+      `SampleID`=li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums %>% names,
+      `Counts`=li.TPM[["Salmon"]][["counts"]][this.gene,] %>% colSums, 
+      `TPM`=li.TPM[["Salmon"]][["TPM"]][this.gene,] %>% colSums 
+      )
+  # add Sex and GA
+  dt.chrY.TPM<-merge(dt.chrY.TPM, dt.samples[,.(SampleID,GA,Sex,pn_female)])
+  dl.chrY.TPM[["10M-tr"]]<-dt.chrY.TPM  # now `1M`, `5M`, `10M` and `10M-tr`
+  #lapply(dl.chrY.TPM, dim)
+```
+
+## Number of false positives: chrY signal detected from females 
+```{r FP_stat_tr}
+  lapply(dl.chrY.TPM[c("10M","10M-tr")], function(i) i[Type=="Salmon (SA mode)" & TPM>0  & Sex=="Female",.(Type,GA)] %>% ftable)
+```
+
+## Read counts by trim or not
+```{r extent-of-chrY-by-trim}
+  ##
+  if(F){
+    dl.stat2<-lapply(dl.chrY.TPM[c("10M","10M-tr")], function(i) i[Type=="Salmon (SA mode)",.(.N,SumCount=sum(Counts),SumTPM=sum(TPM),MeanCount=mean(Counts),MeanTPM=mean(TPM)),.(GA,Sex,Type)][order(GA,Sex)])
+
+    dt.foo<-rbind(
+      cbind(`Mode`="No trim",dl.stat2[["10M"]]),
+      cbind(`Mode`="Trim",dl.stat2[["10M-tr"]])
+      )
+
+    dt.foo %>% dcast.data.table(Mode~Sex+GA,value.var="SumCount")
+    dt.foo[,.(sum(N),SumCount=sum(SumCount),SumTPM=sum(SumTPM)),.(Mode,Sex)] %>% dcast.data.table(Mode~Sex,value.var="SumCount")
+    dt.foo[,.(sum(N),SumCount=sum(SumCount),SumTPM=sum(SumTPM)),.(Mode,Sex)] %>% dcast.data.table(Mode~Sex,value.var="SumTPM")
+
+    ggplot(dt.foo, aes(Mode,MeanCount)) +
+    geom_bar(stat="identity") +
+    facet_grid(Sex~GA,scales="free") +
+    ylab("Mean read count") +
+    theme_Publication() +
+    theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+    annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+    annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+    ggplot(dt.foo, aes(Mode,MeanTPM)) +
+    geom_bar(stat="identity") +
+    facet_grid(Sex~GA,scales="free") +
+    ylab("Mean TPM") +
+    theme_Publication() +
+    theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+    annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+    annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+  }
+
+  ##
+  dt.bar<-merge(
+    dl.chrY.TPM[["10M"]][Type=="Salmon (SA mode)",.(SampleID,GA,Sex,Counts,TPM)],
+    dl.chrY.TPM[["10M-tr"]][Type=="Salmon (SA mode)",.(SampleID,GA,Sex,Counts,TPM)],
+    by=c("SampleID","Sex","GA")
+  )
+
+  ##
+  my.limit<-dt.bar[Sex=="Female",max(Counts.x, Counts.y)]  %>% ceiling
+  p.f<-ggplot(dt.bar[Sex=="Female"], aes(Counts.x,Counts.y)) + 
+  geom_point(size=3, alpha=.9, shape=21) +
+  xlim(0,my.limit) + ylim(0,my.limit) +
+  facet_grid(Sex~GA,scales="free") +
+  xlab("") + ylab("Trim") + ggtitle("Counts") +
+  theme_Publication() +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+  my.limit<-dt.bar[Sex=="Male",max(Counts.x, Counts.y)]  %>% ceiling
+  p.m<-ggplot(dt.bar[Sex=="Male"], aes(Counts.x,Counts.y)) + 
+  geom_point(size=3, alpha=.9, shape=21) +
+  xlim(0,my.limit) + ylim(0,my.limit) +
+  facet_grid(Sex~GA,scales="free") +
+  xlab("No trim") + ylab("Trim") + 
+  theme_Publication() +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+  cowplot::plot_grid(p.f, p.m, nrow=2, align="v")
+
+  #dt.bar[Sex=="Female" & Counts.x<Counts.y] # more counts for Trimmed Salmon
+```
+
+## Conclusion
+- `Salmon (SA mode)` >> `HiSat2`+`Salmon`.
+- Trimming show very marginal difference - even lower chrY counts if not trimmed for some female samples.
+
+## The End
+```{r session-info,echo=T}
+R.version 
+```
+
+```{r false_positives_to_look, eval=F}
+dl.chrY.TPM[["10M"]][TPM>0  & Sex=="Female" & Type=="Salmon (SA mode)"][order(Counts)]
+FP.s<-dl.chrY.TPM[["10M"]][TPM>0  & Sex=="Female" & Type=="Salmon (SA mode)"][order(Counts)]$SampleID
+my.mat[,FP.s] 
+li.TPM[["Salmon"]][["counts"]][this.gene2,FP.s]
+
+dt.tx2gene[gene_id=="ENSG00000067646.11"]
+```
+
+```{r load_dedup_salmon, eval=F}
+  # Salmon only for deduplicated reads from the Salmon (SA mode) BAM files
+  my.RData="RData/li.TPM.10M.dedup.RData"
+  if(!file.exists(my.RData)){
+    my.slx="SLX-ILM-Plasma2021-ds10M.Homo_sapiens.v1"
+    li.TPM<-prep_ds_salmon(my.slx,my.salmon.runs="Salmon_dedup") # NB, this run is only for `Salmon (SA)`
+    save(li.TPM, file=my.RData)
+    message("li.TPM saved")
+  }else{
+    load(my.RData)
+  }
+
+  dt.chrY.TPM<-data.table(
+      `Type`="Salmon (SA mode & dedup)",
+      `SampleID`=li.TPM[["Salmon_dedup"]][["counts"]][this.gene,] %>% colSums %>% names,
+      `Counts`=li.TPM[["Salmon_dedup"]][["counts"]][this.gene,] %>% colSums, 
+      `TPM`=li.TPM[["Salmon_dedup"]][["TPM"]][this.gene,] %>% colSums 
+      )
+  # add Sex and GA
+  dt.chrY.TPM<-merge(dt.chrY.TPM, dt.samples[,.(SampleID,GA,Sex,pn_female)])
+  dl.chrY.TPM[["10M-dedup"]]<-dt.chrY.TPM  # now `1M`, `5M`, `10M` and `10M-tr`
+  #lapply(dl.chrY.TPM, dim)
+```
+
+```{r FP_stat_tr2, eval=F}
+## Number of false positives: chrY signal detected from females 
+  lapply(dl.chrY.TPM[c("10M","10M-dedup")], function(i) i[grepl("SA mode",Type) & TPM>0  & Sex=="Female",.(Type,GA)] %>% ftable)
+
+dl.bar<-lapply(dl.chrY.TPM[c("10M","10M-dedup")], function(i) {
+                 #i[Sex=="Male",Class:=ifelse(TPM>0,"TP","FN")]
+                 #i[Sex=="Female",Class:=ifelse(TPM==0,"TN","FP")] 
+                 i[,`Predicted Sex`:=ifelse(TPM>0, "Male","Female"),Type]
+}) 
+
+## 10M
+dl.bar[["10M"]][,.(Type,`Predicted Sex`,Sex)] %>% ftable %>% pander(caption="Confusion matrix 10M",emphasize.strong.cols = 1, emphasize.strong.rows=1)
+dl.bar[["10M-dedup"]][,.(Type,`Predicted Sex`,Sex)] %>% ftable %>% pander(caption="Confusion matrix 10M",emphasize.strong.cols = 1, emphasize.strong.rows=1)
+
+dt.stat2<-rbind(
+  dl.chrY.TPM[["10M"]][Type=="Salmon (SA mode)",.(.N,SumCount=sum(Counts),SumTPM=sum(TPM),MeanCount=mean(Counts),MeanTPM=mean(TPM)),.(GA,Sex,Type)][order(GA,Sex)],
+  dl.chrY.TPM[["10M-dedup"]][,.(.N,SumCount=sum(Counts),SumTPM=sum(TPM),MeanCount=mean(Counts),MeanTPM=mean(TPM)),.(GA,Sex,Type)][order(GA,Sex)]
+)
+
+ggplot(dt.stat2, aes(Type,MeanCount)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Mean read count") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+ggplot(dt.stat2, aes(Type,MeanTPM)) +
+  geom_bar(stat="identity") +
+  facet_grid(Sex~GA,scales="free") +
+  ylab("Mean TPM") +
+  theme_Publication() +
+  theme(axis.text.x = element_text(angle = 25, hjust=1)) +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+  ##
+  dt.bar<-merge(
+    dl.chrY.TPM[["10M"]][Type=="Salmon (SA mode)",.(SampleID,GA,Sex,Counts,TPM)],
+    dl.chrY.TPM[["10M-dedup"]][,.(SampleID,GA,Sex,Counts,TPM)],
+    by=c("SampleID","Sex","GA")
+  )
+
+  ##
+  my.limit<-dt.bar[Sex=="Female",max(Counts.x, Counts.y)]  %>% ceiling
+  p.f<-ggplot(dt.bar[Sex=="Female"], aes(Counts.x,Counts.y)) + 
+  geom_point(size=3, alpha=.9, shape=21) +
+  xlim(0,my.limit) + ylim(0,my.limit) +
+  facet_grid(Sex~GA,scales="free") +
+  xlab("") + ylab("Dedup") + ggtitle("Counts") +
+  theme_Publication() +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+  my.limit<-dt.bar[Sex=="Male",max(Counts.x, Counts.y)]  %>% ceiling
+  p.m<-ggplot(dt.bar[Sex=="Male"], aes(Counts.x,Counts.y)) + 
+  geom_point(size=3, alpha=.9, shape=21) +
+  xlim(0,my.limit) + ylim(0,my.limit) +
+  facet_grid(Sex~GA,scales="free") +
+  xlab("No dedup") + ylab("Dedup") + 
+  theme_Publication() +
+  annotate("segment", x=-Inf, xend=Inf, y=-Inf, yend=-Inf)+
+  annotate("segment", x=-Inf, xend=-Inf, y=-Inf, yend=Inf)
+
+  cowplot::plot_grid(p.f, p.m, nrow=2, align="v")
+
+
+```
+

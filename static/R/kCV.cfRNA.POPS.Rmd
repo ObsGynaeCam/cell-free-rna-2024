@@ -1,0 +1,1582 @@
+---
+title: "K-Fold Cross Validation of Various Methods"
+subtitle: "based on 17 cores genes"
+author: |
+  | [Sung Gong](https://www.obgyn.cam.ac.uk/staff/research-staff/sung-gong/){target="_blank"}
+institute: |
+  | Department of Obstetrics & Gynaecology
+  | University of Cambridge
+date: "`r Sys.time()`"
+output: 
+    binb::metropolis:
+        slide_level: 2 
+        toc: false
+        fig_caption: true
+        keep_tex: false
+fontsize: 10pt
+classoption: aspectratio=149
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{xcolor}
+tables: true
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+  #rmarkdown::render("kCV.cfRNA.POPS.Rmd")
+  knitr::opts_chunk$set(cache=TRUE, echo = FALSE, message=FALSE, warning=FALSE) # with caching
+
+  library(magrittr)
+  library(caret)
+
+  lazyLoad("cfRNA.preterm.PE.modelling.POPS-2022.GRCh38.88_cache/beamer/setup_29fa8d744cc4c7c31d75c30259e529d2")
+
+  source("libs/local.R") # global settings & functions 
+  source("libs/graphic.R") # Sung's graphic function
+
+  dt.colDataTerm<-dt.colDataAll[Type=="term" & !names %in% c("GS-B-374-UW","GS-B-374-UW-b")] # remove these two samples as both of them flagged as "failed" by illumina (it is a 28wk control sample)
+  li.GA.term<-split(dt.colDataTerm, dt.colDataTerm$GA)
+
+  ##
+  lazyLoad("cfRNA.preterm.PE.modelling.POPS-2022.GRCh38.88_cache/beamer/deg_regz_bc6d8c1806c584bd8c7449b52995165a")
+  top1pctZ<-venn.top1pctZ %>% unlist %>% unique
+  core17<-dt.venn.top1pctZ[AIC==1 & AUC==1 & DESeq2==1 & edgeR==1]$Gene
+
+  #
+  lazyLoad("cfRNA.preterm.PE.modelling.POPS-2022.GRCh38.88_cache/beamer/res_val1_1e58850d86299cbb9fe5fcc4d1321a05")
+  #
+  lazyLoad("cfRNA.preterm.PE.modelling.POPS-2022.GRCh38.88_cache/beamer/preterm_res_val1_f795dad01739a52db9630e3f90f33b19")
+  #
+  lazyLoad("cfRNA.preterm.PE.modelling.POPS-2022.GRCh38.88_cache/beamer/preterm_res_val2_62ec5e540ae222c9e041caed4161ad96")
+  #
+  lazyLoad("cfRNA.preterm.PE.modelling.POPS-2022.GRCh38.88_cache/beamer/uni_logreg_core_deg1_0d464dfb4587fd6c65ca5107354e585f")
+  #
+  lazyLoad("mxnet.cfRNA.POPS_cache/beamer/WF2_munchel_logit_pappa2_lep_table1_e2ea088074bd31abd4fff75583ca4871")
+
+  # used in kcv_run_rfe1
+  li.methods<-list(
+    `svmLinear`="svmLinear",
+    `svmRadial`="svmRadial",
+    `nnet`="nnet",
+    `pcaNNet`="pcaNNet",
+    `rfFuncs`=rfFuncs,
+    `nbFuncs`=nbFuncs
+    #`dnn`="dnn", # failed
+    #`lrFuncs`=lrFuncs, # failed
+    #`ldaFuncs`=ldaFuncs, # failed
+    #`treebagFuncs`=treebagFuncs,
+    #`gamFuncs`=gamFuncs,
+    #`lmFuncs`=lmFuncs,
+    )
+
+```
+
+```{r kcv-prep-set-fold1}
+  load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData") # dt.cpmZ (preterm)
+  load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
+  load("RData/dt.cpmZ.munchel.RData") # dt.cpmZ.munchel (Munchel)
+
+  li.mat<-list()
+  # set the train dataset, i.e. preterm-28wk
+  li.mat[["train"]]<-lapply(list(`12wk`="12wk",`20wk`="20wk",`28wk`="28wk"), function(my.GA) {
+    dt.cpmZ[GA==my.GA & geneName %in% core17,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") # isa 'list'
+    })
+
+  # set the test dataset, i.e. term
+  li.mat[["test"]]<-lapply(list(`12wk`="12wk",`20wk`="20wk",`28wk`="28wk",`36wk`="36wk"), function(my.GA) {
+      dt.cpmZ.term[GA==my.GA & geneName %in% core17,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") # isa 'list'
+    })
+
+  li.mat[["munchel"]]<-dt.cpmZ.munchel[geneName %in% core17,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") # isa 'matrix'
+
+  # set fold via caret::createMultiFolds
+  # NB, use the stratified version below 
+  if(F){
+    list(`12wk`="12wk",`20wk`="20wk",`28wk`="28wk",`36wk`="36wk")
+    sapply(li.mat[["train"]], dim)
+    sapply(li.mat[["test"]], dim)
+
+    set.seed(21)
+    li.fold<-caret::createMultiFolds(y, k=5, times=5)  # returns index of training
+    sapply(li.fold, function(i) li.mat[["train"]][["28wk"]][i,"y"] %>% table)
+    sapply(li.fold, function(i) li.mat[["train"]][["28wk"]][-i,"y"] %>% table)
+  }
+
+  # set stratified folds
+  # a stratified is implemented sampling approach, such that the numbers of cases and controls in each fold are the same for each fold (or, at least, as close to this as possible)
+  ##############################################
+  # Set the 5-fold with 5 rep for 28wk preterm #
+  ##############################################
+  nFold<-5; nRep<-5; li.fold<-list() # index of training in 
+  for(iRep in 1:nRep){
+    caseInds <- which(li.mat[["train"]][["28wk"]][,"y"]==1)
+    ctrlInds <- which(li.mat[["train"]][["28wk"]][,"y"]==0)
+
+    #Randomise for good measure:
+    set.seed(123+iRep)
+    caseInds <- caseInds[sample(1:length(caseInds))]
+    ctrlInds <- ctrlInds[sample(1:length(ctrlInds))]
+
+    approximatelyEqualParts_Cases <- ggplot2::cut_interval(1:length(caseInds), nFold)
+    approximatelyEqualParts_Ctrls <- ggplot2::cut_interval(1:length(ctrlInds), nFold)
+
+    quintiles_Cases <- vector(mode = "integer", length = length(caseInds))
+    quintiles_Ctrls <- vector(mode = "integer", length = length(ctrlInds))
+    for(i in 1:length(levels(approximatelyEqualParts_Cases))){
+      currentLevel <- levels(approximatelyEqualParts_Cases)[i]
+      quintiles_Cases[approximatelyEqualParts_Cases == currentLevel] <- i
+    }
+
+    for(i in 1:length(levels(approximatelyEqualParts_Ctrls))){
+      currentLevel <- levels(approximatelyEqualParts_Ctrls)[i]
+      quintiles_Ctrls[approximatelyEqualParts_Ctrls == currentLevel] <- i
+    }
+
+    quintiles <- vector(mode = "integer", length = nrow(li.mat[["train"]][["28wk"]]))
+    for(i in 1:nFold){
+      quintiles[c(caseInds[quintiles_Cases == i], ctrlInds[quintiles_Ctrls == i])] <- i
+    }
+
+      # Split the data into training and testing sets for this fold
+    for(iFold in 1:nFold){
+      li.fold[[paste0("Fold",iFold,".Rep",iRep)]]<-which(quintiles != iFold)
+    }
+  }
+
+  ########################################
+  # Set the final 5-fold to use all_28wk #
+  ########################################
+  nFold<-5; nRep<-1; li.fold.final<-list() # index of training in 
+  for(iRep in 1:nRep){
+    caseInds <- which(li.mat[["train"]][["28wk"]][,"y"]==1)
+    ctrlInds <- which(li.mat[["train"]][["28wk"]][,"y"]==0)
+
+    #Randomise for good measure:
+    set.seed(333)
+    caseInds <- caseInds[sample(1:length(caseInds))]
+    ctrlInds <- ctrlInds[sample(1:length(ctrlInds))]
+
+    approximatelyEqualParts_Cases <- ggplot2::cut_interval(1:length(caseInds), nFold)
+    approximatelyEqualParts_Ctrls <- ggplot2::cut_interval(1:length(ctrlInds), nFold)
+
+    quintiles_Cases <- vector(mode = "integer", length = length(caseInds))
+    quintiles_Ctrls <- vector(mode = "integer", length = length(ctrlInds))
+    for(i in 1:length(levels(approximatelyEqualParts_Cases))){
+      currentLevel <- levels(approximatelyEqualParts_Cases)[i]
+      quintiles_Cases[approximatelyEqualParts_Cases == currentLevel] <- i
+    }
+
+    for(i in 1:length(levels(approximatelyEqualParts_Ctrls))){
+      currentLevel <- levels(approximatelyEqualParts_Ctrls)[i]
+      quintiles_Ctrls[approximatelyEqualParts_Ctrls == currentLevel] <- i
+    }
+
+    quintiles <- vector(mode = "integer", length = nrow(li.mat[["train"]][["28wk"]]))
+    for(i in 1:nFold){
+      quintiles[c(caseInds[quintiles_Cases == i], ctrlInds[quintiles_Ctrls == i])] <- i
+    }
+
+      # Split the data into training and testing sets for this fold
+    for(iFold in 1:nFold){
+      li.fold.final[[paste0("Fold",iFold,".Rep",iRep)]]<-which(quintiles != iFold)
+    }
+  }
+
+  if(F){
+    li.mat[["train"]][["28wk"]] %>% dim
+    li.mat[["train"]][["28wk"]][1:30,1:5]
+    li.mat[["train"]][["28wk"]][,"y"] %>% table
+    (y<-li.mat[["train"]][["28wk"]][,"y"])
+
+    # training set
+    sapply(li.fold, function(i) li.mat[["train"]][["28wk"]][i,"y"] %>% table) # training set
+    # test set
+    sapply(li.fold, function(i) li.mat[["train"]][["28wk"]][-i,"y"] %>% table) # test set
+
+    names(li.fold[1:2])
+    li.fold[[1]]
+    li.fold[[2]]
+
+    li.fold[[1]]
+    li.fold[[6]]
+    li.fold[[11]]
+
+    li.mat[["train"]][["28wk"]][1:5,1:5]
+    li.fold[[1]]
+    li.fold[[2]]
+
+    c(
+    (1:nrow(li.mat[["train"]][["28wk"]]))[!1:nrow(li.mat[["train"]][["28wk"]]) %in% li.fold[[1]]],
+    (1:nrow(li.mat[["train"]][["28wk"]]))[!1:nrow(li.mat[["train"]][["28wk"]]) %in% li.fold[[6]]],
+    (1:nrow(li.mat[["train"]][["28wk"]]))[!1:nrow(li.mat[["train"]][["28wk"]]) %in% li.fold[[11]]],
+    (1:nrow(li.mat[["train"]][["28wk"]]))[!1:nrow(li.mat[["train"]][["28wk"]]) %in% li.fold[[16]]],
+    (1:nrow(li.mat[["train"]][["28wk"]]))[!1:nrow(li.mat[["train"]][["28wk"]]) %in% li.fold[[21]]]
+    ) %>% table
+
+    # check all held-out dataset Fold1-Fold5 in Rep1
+    (foo<-c(
+    (1:nrow(li.mat[["train"]][["28wk"]]))[!1:nrow(li.mat[["train"]][["28wk"]]) %in% li.fold[[1]]],
+    (1:nrow(li.mat[["train"]][["28wk"]]))[!1:nrow(li.mat[["train"]][["28wk"]]) %in% li.fold[[2]]],
+    (1:nrow(li.mat[["train"]][["28wk"]]))[!1:nrow(li.mat[["train"]][["28wk"]]) %in% li.fold[[3]]],
+    (1:nrow(li.mat[["train"]][["28wk"]]))[!1:nrow(li.mat[["train"]][["28wk"]]) %in% li.fold[[4]]],
+    (1:nrow(li.mat[["train"]][["28wk"]]))[!1:nrow(li.mat[["train"]][["28wk"]]) %in% li.fold[[5]]]) %>% table)
+    all.equal(as.integer(names(foo)), 1:nrow(li.mat[["train"]][["28wk"]]))
+
+    #####################################################
+    # make training dataset files for the CV glParallel #
+    #####################################################
+    lapply(names(li.fold), function(i){
+      message("fold=",i)
+      # training set
+      my.index=li.fold[[i]]
+      my.file.name=file.path("glParallel/data",paste("core17",i,"csv",sep="."))
+      fwrite(li.mat[["train"]][["28wk"]][my.index,], file=my.file.name)
+    })
+    # then run glParallel (see glParallel/RUN)
+
+    ####################################################
+    # make training dataset files for final glParallel #
+    ####################################################
+    fwrite(li.mat[["train"]][["28wk"]], file="glParallel/data/core17.final.csv")
+  }
+```
+
+```{r set_tune_grid1}
+if(T){
+  li.tuneGrid<-list()
+  li.tuneGrid[["xgbTree"]]<- expand.grid(
+    nrounds = c(2,50,100,150,200),                # default: 100
+    max_depth = c(2, 3, 4, 5, 6),                 # default: 6
+    eta = seq(0.1,1,by=0.2),                      # default: 0.3
+    gamma = c(0, 0.05, 0.1, 0.5, 0.7, 0.9, 1.0),  # default: 0
+    colsample_bytree=1,                           # default: 1
+    min_child_weight=1,                           # default: 1
+    subsample=1                                   # default: 1
+  )
+
+  li.tuneGrid[["xgbLinear"]]<- expand.grid(
+    nrounds = c(2,50,100,150,200),                # default: 100
+    lambda = seq(0,1,by=0.2),                     # defualt: 1
+    alpha = seq(0,1,by=0.2),                      # default: 0
+    eta = seq(0.1,1,by=0.2)                       # default: 0.3
+  )
+
+  li.tuneGrid[["dnn"]]<- expand.grid(
+    layer1=c(5,10,20,40), # vector for number of units of hidden layer: default c(10)
+    layer2=c(5,10,20,40),
+    layer3=c(5,10,20,40),
+    hidden_dropout=seq(0,1,by=0.2), # default: 0
+    visible_dropout=seq(0,1,by=0.2) # default: 0
+    #learningrate=c(0.6,0.8,0.9) # default: 0.8
+  )
+
+  # Neural Net
+  li.tuneGrid[["nnet"]]<- expand.grid(
+    size=c(0,2,5,10,20), # number of units in the hidden layer 
+    decay=seq(0,1,by=0.2) # default: 0
+  )
+
+  # Neural Networks with Feature Extraction 
+  li.tuneGrid[["pcaNNet"]]<- expand.grid(
+    size=c(2,5,10,20), # number of units in the hidden layer 
+    decay=seq(0,1,by=0.2) # default: 0
+  )
+
+  li.tuneGrid[["svmLinear"]] <- expand.grid(C = seq(0, 2, length = 20)) 
+  li.tuneGrid[["svmRadial"]] <- expand.grid(sigma=seq(0,1, length=0.1),C = seq(0, 2, length = 20)) 
+  li.tuneGrid[["rf"]] <- T
+}
+
+if(F){
+  li.tuneGrid[["avNNet"]]<- expand.grid(
+    size=c(2,5,10), # number of units in the hidden layer 
+    decay=seq(0,1,by=0.2), # default: 0
+    bag=FALSE
+  )
+
+  li.tuneGrid[["mlpKerasDropout"]]<-"mlpKerasDropout"
+  li.tuneGrid[["mlpKerasDecay"]]<-"mlpKerasDecay"
+
+  # Multilayer Perceptron Network by Stochastic Gradient Descent
+  li.tuneGrid[["mplSGD"]]<- expand.grid(
+    size=, #(#Hidden Units)
+    l2reg=, #(L2 Regularization)
+    lambda=, #(RMSE Gradient Scaling)
+    learn_rate=, #(Learning Rate)
+    momentum=, #(Momentum)
+    gamma=, #(Learning Rate Decay)
+    minibatchsz=, #(Batch Size)
+    repeats=, #(#Models)
+  )
+
+  # only for regression
+  li.tuneGrid[["neuralnet"]]<- expand.grid(
+    layer1=c(5,10,20), # default 1
+    layer2=c(5,10,20),
+    layer3=c(5,10,20)
+  )
+}
+```
+
+```{r def_fun1}
+# run Lasso and get non-zero coef
+# returns: DT(`method`,`fold`,`feature`,`score`,`rank`)
+get_lasso_coef<-function(x,my.fold,my.num=4){
+  #x isa `matrix` and should contain 'y' column
+  all.features<-colnames(x)[colnames(x)!="y"]
+
+  #############
+  # run Lasso #
+  #############
+  set.seed(333) # set a random seed for a reproducibility
+  system.time(
+      cv.fit<-cv.glmnet(
+                  x= x[,all.features], 
+                  y= x[,'y'], 
+                  family="binomial",
+                  alpha=1, # default (i.e. lasso)
+                  keep=T, # FALSE by default
+                  type.measure = "auc" #type.measure="class" # default for 'binomial'
+      )
+  )
+
+  ############################################
+  # 1. select by lambda.min  & 2. lambda.1se #
+  ############################################
+  dt.foo<-lapply(c("lambda.min","lambda.1se"), function(my.lambda){
+    coeff1<-coef(cv.fit, s = my.lambda) %>% as.matrix #Extract coefficients from this glmnet object
+    nZero1<-coeff1[coeff1[,"s1"]!=0,,drop=F][-1,,drop=F] %>% nrow # the number of non-zero coeff
+    if(nZero1==0){
+      dt.foo<-data.table(
+                        method=my.lambda,
+                        fold=my.fold,
+                        `feature`=NA,
+                        score=NA)
+    }else{
+      coeff1[coeff1[,"s1"]!=0,,drop=F][-1,,drop=F] 
+      coeff1[coeff1[,"s1"]!=0,,drop=F][-1,,drop=F] %>% as.data.table(keep.rownames=T) # return DT(rn,s1)
+      dt.foo<-data.table(
+                        method=my.lambda,
+                        fold=my.fold,
+                        coeff1[coeff1[,"s1"]!=0,,drop=F][-1,,drop=F] %>% as.data.table(keep.rownames=T))
+    }
+    setnames(dt.foo,c("method","fold","feature","score"))
+    dt.foo
+  }) %>% rbindlist
+
+  ####################
+  # 3. Lasso-pathway #
+  ####################
+  mat.beta <- cv.fit$glmnet.fit$beta %>% as.matrix
+  apply(mat.beta, 2, function(i){table(i!=0)["TRUE"]})
+  my.lambdas<-apply(mat.beta, 2, function(i){table(i!=0)["TRUE"]})>=my.num
+  this.index<-my.lambdas[my.lambdas & !is.na(my.lambdas)][1] %>% names # the first index >=my.num
+  if(is.na(this.index)){
+    NULL
+  }else{
+    this.index.num <- (strsplit(this.index,"s")[[1]][2] %>% as.integer) +1
+    nZero<-sum(mat.beta[,this.index]!=0, na.rm=T) # number of non-zero coefficient
+    #mat.beta[mat.beta[,this.index]!=0,this.index,drop=F]
+    dt.bar<-data.table(
+                      method="LASSO",
+                      fold=my.fold,
+                      mat.beta[mat.beta[,this.index.num]!=0,this.index.num,drop=F] %>% as.data.table(keep.rownames=T)
+    ) # save as the above
+    setnames(dt.bar,c("method","fold","feature","score"))
+
+    if(nrow(dt.bar)>my.num){
+      dt.bar<-dt.bar[order(method,fold,-abs(score))][1:my.num]
+    }
+
+    dt.baz<-rbind(dt.foo, dt.bar)
+    dt.baz<-dt.baz[order(method,fold,-abs(score))][,rank:=1:.N,.(method,fold)]
+    return(dt.baz)
+  }
+} # end of get_lasso_coef
+
+# run ENet1 and ENet2 and get non-zero coef
+# x: the data set
+# returns: DT(`method`,`fold`,`feature`,`score`,`rank`)
+get_enet_coef<-function(x,my.fold,my.num=4){
+  #x isa `matrix` and should contain 'y' column
+  all.features<-colnames(x)[colnames(x)!="y"]
+
+  cv.fit<-list()
+  ##########
+  # E: EN1 #
+  ##########
+  cl <- makePSOCKcluster(8) # No. of cores to use
+  registerDoParallel(cl)
+  set.seed(333) # set a random seed for a reproducibility
+  system.time(
+      cv.fit[["E"]]<-caret::train(
+                              x= x[,all.features], 
+                              y=factor(ifelse(x[,"y"]==1,'case','non_case'),levels=c("non_case","case")),
+                              method="glmnet",
+                              family="binomial",
+                              trControl = trainControl(method = "cv",
+                                                        summaryFunction = twoClassSummary,
+                                                        classProbs = TRUE,
+                                                        savePredictions = T,
+                                                        verboseIter = T,
+                                                        ),  # number =10 by default for "cv"
+                              tuneLength=10, # grid size: 10(alpha) * 10(lambda) 
+      )
+  )
+  stopCluster(cl)
+
+  if(F){
+  varImp(cv.fit[["E"]], useModel=T)
+  varImp(cv.fit[["E"]], useModel=F, nonpara=F, scale=T)
+  predictors(cv.fit$E) # features used in the model
+  }
+
+  mat.beta<- cv.fit$E$finalModel$beta %>% as.matrix
+  my.lambdas<-apply(mat.beta, 2, function(i){table(i!=0)["TRUE"]})>=my.num
+  this.index<-my.lambdas[my.lambdas & !is.na(my.lambdas)][1] %>% names
+  if(is.na(this.index)){
+    dt.foo<-NULL
+  }else{
+    this.index.num <- (strsplit(this.index,"s")[[1]][2] %>% as.integer) +1
+    #mat.beta[mat.beta[,this.index.num]!=0,this.index.num,drop=F] %>% as.data.table(keep.rownames=T)
+    dt.foo<-data.table(method="ENet1",
+                      fold=my.fold,
+                      mat.beta[mat.beta[,this.index.num]!=0,this.index.num,drop=F] %>% as.data.table(keep.rownames=T)) # save as the above
+    setnames(dt.foo,c("method","fold","feature","score"))
+    if(nrow(dt.foo)>my.num){
+      dt.foo<-dt.foo[order(method,fold,-abs(score))][1:my.num]
+    }
+  }
+
+  ##########
+  # F: EN2 #
+  ##########
+  set.seed(333)
+  system.time(
+      cv.fit[["F"]]<-cv.glmnet(
+                  x= x[,all.features], 
+                  y= x[,"y"], # will be coerced to a factor if not (for binomial)
+                  family="binomial",
+                  alpha=cv.fit$E$bestTune$alpha,
+                  keep=T, # FALSE by default
+                  type.measure = "auc" #type.measure="class" # default for 'binomial'
+      )
+  )
+  #cv.fit$F$nzero
+  mat.beta2 <- cv.fit$F$glmnet.fit$beta %>% as.matrix
+  my.lambdas<-apply(mat.beta2, 2, function(i){table(i!=0)["TRUE"]})>=my.num
+  this.index<-my.lambdas[my.lambdas & !is.na(my.lambdas)][1] %>% names
+  if(is.na(this.index)){
+    dt.bar<-NULL
+  }else{
+    this.index.num <- (strsplit(this.index,"s")[[1]][2] %>% as.integer) +1
+    dt.bar<-data.table(
+                        method="ENet2",
+                        fold=my.fold,
+                        mat.beta2[mat.beta2[,this.index.num]!=0,this.index.num,drop=F] %>% as.data.table(keep.rownames=T)) # save as the above
+    setnames(dt.bar,c("method","fold","feature","score"))
+    if(nrow(dt.bar)>my.num){
+      dt.bar<-dt.bar[order(method,fold,-abs(score))][1:my.num]
+    }
+  }
+
+  dt.baz<-rbind(dt.foo,dt.bar)
+  if(!is.null(dt.baz)){
+    dt.baz<-dt.baz[order(method,fold,-abs(score))][,rank:=1:.N,.(method,fold)]
+  }
+  return(dt.baz)
+} # end of get_enet_coef
+
+# 
+# x: data matrix
+# my.method: 
+# my.num: number of desired features
+# my.index: a list with elements for each external resampling iteration.
+# is.final: the final selected features if set true; oterwise at each fold level
+# returns: DT(`method`,`fold`,`feature`,`score`,`rank`)
+runRFE2 <-function(x, my.method="svmRadial", my.num=4, my.index, is.final=F){
+  #x isa `matrix` and should contain 'y' column
+  all.features<-colnames(x)[colnames(x)!="y"]
+
+  li.methods<-list(
+    `svmLinear`="svmLinear",
+    `svmRadial`="svmRadial",
+    `nnet`="nnet",
+    `pcaNNet`="pcaNNet",
+    `rfFuncs`=rfFuncs,
+    `nbFuncs`=nbFuncs,
+    `dnn`="dnn", # failed
+    `lrFuncs`=lrFuncs, # failed
+    `ldaFuncs`=ldaFuncs, # failed
+    `treebagFuncs`=treebagFuncs, # failed
+    `gamFuncs`=gamFuncs, # failed
+    `lmFuncs`=lmFuncs # failed
+    )
+
+  my.fun<-li.methods[[my.method]]
+  if(is.list(my.fun)){
+    myFuncs<-my.fun
+  }else{
+    myFuncs<-caretFuncs
+  }
+  myFuncs$summary <- twoClassSummary
+
+  rfe.ctrl <- rfeControl(functions=myFuncs,
+                         method = "cv",
+                         #repeats =1, number = 10, # NB, index below
+                         #returnResamp="all", # "final" by default
+                         saveDetails=T,
+                         verbose = TRUE,
+                         index = my.index #a list with elements for each external resampling iteration.
+                                          #Each list element is the sample rows used for training at
+                                          #that iteration.
+  )
+
+  tr.ctrl <- trainControl(method = "cv",
+                          #repeats =1, number = 10, # NB, index below
+                          summaryFunction = twoClassSummary,
+                          classProbs = TRUE,
+                          savePredictions = T,
+                          verboseIter = T,
+                          index = my.index #a list with elements for each external resampling iteration.
+                                            #Each list element is the sample rows used for training at
+                                            #that iteration.
+  )
+
+  # run REF via caret::ref #
+  cl <- makePSOCKcluster(8) # No. of cores to use
+  registerDoParallel(cl)
+  set.seed(333) # set a random seed for a reproducibility
+  cv.rfe<-caret::rfe(
+                     x=as.data.frame(x[,all.features]),
+                     y=factor(ifelse(x[,"y"]==1,'case','non_case'),levels=c("non_case","case")),
+                     sizes = my.num, #2^(2:4), # default 
+                     metric="ROC",
+                     rfeControl=rfe.ctrl,
+                     method=my.method, # feed it to 'train'
+                     #tuneGrid=li.tuneGrid[[my.method]],
+                     tuneLength = 5, #ifelse(trControl$method == "none", 1, 3)
+                     trControl=tr.ctrl # feed it to 'train'
+  )
+  stopCluster(cl)
+
+  dt.foo<-data.table(`method`=my.method,cv.rfe$variables)
+  if(is.final){
+    dt.bar<-data.table(`method`=my.method,
+                       `fold`="final",
+                       `feature`=cv.rfe$optVariables[1:my.num],
+                       `score`=NA,
+                       `rank`=1:my.num)
+  }else{
+    dt.bar<-dt.foo[Variables==cv.rfe$optsize][order(Resample,-Overall)][,.SD[1:my.num],.(method,Resample)][,rank:=1:.N,.(method,Resample)][,.(method,fold=Resample,feature=var,score=Overall,rank)]
+  }
+
+  return(dt.bar)
+
+  if(F){
+    cv.rfe
+    predictors(cv.rfe)
+    cv.rfe$optVariables
+    cv.rfe$optsize
+    cv.rfe$bestSubset
+    cv.rfe$resample
+    cv.rfe$result
+
+    varImp(cv.rfe) # probably not the same order as the above
+    varImp(cv.rfe, useModel=F, nonpara=F, scale=T)
+
+    cv.rfe$fit  # isa `randomForest`
+    cv.rfe$fit$result
+    if(is.list(my.fun)){
+      cv.rfe$fit$importance 
+      cv.rfe$fit$importanceSD
+    }else{
+    cv.rfe$fit$resample
+    cv.rfe$fit$bestTune
+    cv.rfe$fit$finalModel
+    }
+
+    #
+    dt.foo[,.N,Variables]
+    dt.foo[,.(.N,meanOverall=mean(Overall)),.(feature=var)][order(-N)]
+    dt.foo[Variables==cv.rfe$optsize][,.(.N,meanOverall=mean(Overall)),.(feature=var)][order(-N)]
+    dt.foo[Variables==cv.rfe$optsize][order(Resample,-Overall)][,.SD[1:my.num],Resample][,.(.N,meanOverall=mean(Overall)),.(feature=var)][order(-N,-meanOverall)]
+
+    dt.foo[Variables==cv.rfe$optsize][order(Resample,-Overall)][,.SD[1:my.num],.(method,Resample)][,-"Variables"]
+
+    dt.bar[,.(.N,mean(score),mean(rank)),feature][order(-V2)]
+  }
+}
+
+
+#
+# x: matrix dataset (train/test at the same time, separated by my.index which is the training)
+# my.fold: fold ID
+# my.index: the training index of `x` to subset where the model should be built
+# my.feature: features of interests
+get_cv_glm<-function(x=li.mat[["train"]][["28wk"]],my.fold,my.index,my.feature){
+  mat.tr<-x[my.index,] # index of the training
+  df.mat.tr<-mat.tr[,c(my.feature,'y')] %>% as.data.frame  # training set
+
+  ############################################
+  # fit the model using the training dataset #
+  ############################################
+  my.model<-glm(y~. , data = df.mat.tr, family = "binomial")
+
+  # ROC from the training fold
+  my.roc <-pROC::roc(response=df.mat.tr$y, predictor=fitted(my.model),quite=T,ci=T)
+
+  # LPOCV from the training fold
+  LPOCV.boot<-boot::boot(data=df.mat.tr, statistic=get_LPOCV_boot,R=100,parallel="multicore",ncpus=10)
+  LPOCV.ci<-boot::boot.ci(LPOCV.boot,type="perc")
+
+  # the whole dataset were training set, i.e. no test
+  if(length(my.index)==nrow(x)){
+    cbind(
+      data.table(
+                `fold`=my.fold,
+                `predictor`=paste(my.feature,collapse=",")
+                ),
+      data.table(
+                `AIC`=my.model$aic,
+                `BIC`=BIC(my.model),
+                `AUC`=my.roc$ci[2]*100, 
+                `AUC_lo`=my.roc$ci[1]*100, 
+                `AUC_hi`=my.roc$ci[3]*100,
+                `LPOCV`=LPOCV.boot$t0,
+                `LPOCV_lo`=LPOCV.ci$percent[4],
+                `LPOCV_hi`=LPOCV.ci$percent[5]
+                )
+    )
+  }else{
+    #################################################
+    # now, predict the outcome of the held-out data #
+    # using the model from the training dataset     #
+    #################################################
+    mat.test<-x[-my.index,]  
+    df.mat.test<-mat.test[,c(my.feature,'y')] %>% as.data.frame # held-out
+
+    my.prob<-predict.glm(my.model, newdata=df.mat.test, type="response") 
+    my.roc.test <- pROC::roc(response=df.mat.test$y, predictor=my.prob,quiet=T,ci=T)
+    LPOCV.boot.test<-boot::boot(data=df.mat.test, statistic=get_LPOCV_boot,R=100,parallel="multicore",ncpus=20)
+    # deal with failed boot result
+    if(is.numeric(LPOCV.boot.test$t)){
+      LPOCV.ci.test<-boot::boot.ci(LPOCV.boot.test,type="perc")
+      LPOCV_test_lo=LPOCV.ci.test$percent[4]
+      LPOCV_test_hi=LPOCV.ci.test$percent[5]
+    }else{
+      LPOCV_test_lo=NA
+      LPOCV_test_hi=NA
+    }
+    # return the following table
+    cbind(
+      data.table(
+                `fold`=my.fold,
+                `predictor`=paste(my.feature,collapse=",")
+                ),
+      data.table(
+                `AIC`=my.model$aic,
+                `BIC`=BIC(my.model),
+                `AUC`=my.roc$ci[2]*100, 
+                `AUC_lo`=my.roc$ci[1]*100, 
+                `AUC_hi`=my.roc$ci[3]*100,
+                `LPOCV`=LPOCV.boot$t0,
+                `LPOCV_lo`=LPOCV.ci$percent[4],
+                `LPOCV_hi`=LPOCV.ci$percent[5],
+                `AUC_test`=my.roc.test$ci[2]*100, 
+                `AUC_test_lo`=my.roc.test$ci[1]*100, 
+                `AUC_test_hi`=my.roc.test$ci[3]*100,
+                `LPOCV_test`=LPOCV.boot.test$t0,
+                `LPOCV_test_lo`=LPOCV_test_lo,
+                `LPOCV_test_hi`=LPOCV_test_hi
+                )
+    )
+  }
+}
+
+# x: the dataset where the model should be tested on (i.e. the test set)
+# my.model: the model from the training 
+# 
+get_cv_glm2<-function(x=li.mat[["test"]][["28wk"]],my.fold, my.model,my.feature){
+    df.mat.test<-x[,c(my.feature,'y')] %>% as.data.frame # test (validation) dataset
+
+    #my.prob<-predict.glm(my.model, newdata=df.mat.test, type="response") 
+    my.prob<-predict(my.model, newdata=df.mat.test, type="response") 
+    my.roc.test <- pROC::roc(response=df.mat.test$y, predictor=my.prob,quiet=T,ci=T)
+    LPOCV.boot.test<-boot::boot(data=df.mat.test, statistic=get_LPOCV_boot,R=100,parallel="multicore",ncpus=20)
+    # deal with failed boot result
+    if(is.numeric(LPOCV.boot.test$t)){
+      LPOCV.ci.test<-boot::boot.ci(LPOCV.boot.test,type="perc")
+      LPOCV_test_lo=LPOCV.ci.test$percent[4]
+      LPOCV_test_hi=LPOCV.ci.test$percent[5]
+    }else{
+      LPOCV_test_lo=NA
+      LPOCV_test_hi=NA
+    }
+
+    # return the following table
+    cbind(
+      data.table(
+                `fold`=my.fold,
+                `predictor`=paste(my.feature,collapse=",")
+                ),
+      data.table(
+                `AUC_test`=my.roc.test$ci[2]*100, 
+                `AUC_test_lo`=my.roc.test$ci[1]*100, 
+                `AUC_test_hi`=my.roc.test$ci[3]*100,
+                `LPOCV_test`=LPOCV.boot.test$t0,
+                `LPOCV_test_lo`=LPOCV_test_lo,
+                `LPOCV_test_hi`=LPOCV_test_hi,
+                 `AIC`=my.model$aic,
+                 `BIC`=BIC(my.model)
+                )
+    )
+}
+```
+
+```{r kcv_all_method1}
+## 
+## Training on based on 5-fold CV
+##
+my.RData<-file.path("RData/dl.kcv.core17.RData")
+if(file.exists(my.RData)){
+  load(my.RData)
+}else{
+  library(e1071)
+  source('SVM-RFE/msvmRFE.R')
+
+  li.methods<-list(
+    `svmLinear`="svmLinear",
+    `svmRadial`="svmRadial",
+    `nnet`="nnet",
+    `pcaNNet`="pcaNNet",
+    `rfFuncs`=rfFuncs,
+    `nbFuncs`=nbFuncs
+    #`dnn`="dnn", # failed
+    #`lrFuncs`=lrFuncs, # failed
+    #`ldaFuncs`=ldaFuncs, # failed
+    #`treebagFuncs`=treebagFuncs,
+    #`gamFuncs`=gamFuncs,
+    #`lmFuncs`=lmFuncs,
+    )
+
+  #|Num: 6 Method: LASSO
+  # Fold5.Rep5
+  #Error in mat.beta[, this.index] : subscript out of bounds
+  li.num<-list(`F2`=2,`F3`=3,`F4`=4,`F5`=5,`F6`=6)
+  dl.kcv<-lapply(li.num, function(my.num){
+    # 1. glParallel
+    message(paste("Num:",my.num,"Method: glParallel"))
+    my.pattern=paste0("^core17\\.Fold[[:alnum:]]\\.Rep[[:alnum:]]\\.best",my.num)
+    dt.input<-data.table(
+                    foo=list.files("glParallel/result",pattern=my.pattern),
+                    files=list.files("glParallel/result",pattern=my.pattern,full.names=T)
+                    )[,c("foo1","bar1"):=tstrsplit(foo,"\\.",keep=c(2,3))][,fold:=paste(foo1,bar1,sep=".")][,c("foo","foo1","bar1"):=NULL]
+
+    dt.cv.glp <-apply(dt.input, 1, function(i){
+              my.fold<-i[["fold"]]
+              my.feature<-fread(i["files"])[1][["Best proteins"]] %>% strsplit(",") %>% unlist
+              data.table(method="glParallel",fold=my.fold,feature=my.feature,score=NA,rank=NA)
+              #cbind(`fold`=i[["fold"]],fread(i["files"])[1])
+    }) %>% rbindlist
+
+    # 2. Lasso
+    # one multinomial or binomial class has fewer than 8  observations; dangerous ground
+    dt.cv.lasso<-lapply(names(li.fold), function(my.fold){
+      message(paste("Num:",my.num,"Method: LASSO, Fold:",my.fold))
+      my.tr.index<-li.fold[[my.fold]] # index of training 
+      x<-li.mat[["train"]][["28wk"]][my.tr.index,] # the training dataset
+      get_lasso_coef(x, my.fold, my.num=my.num) 
+    }) %>% rbindlist
+
+    # 3. ElasticNet
+    # warnings(): one multinomial or binomial class has fewer than 8  observations; dangerous ground
+    dt.cv.enet<-lapply(names(li.fold), function(my.fold){
+      message(paste("Num:",my.num,"Method: ENET, Fold:",my.fold))
+      my.tr.index<-li.fold[[my.fold]] # index of training 
+      x<-li.mat[["train"]][["28wk"]][my.tr.index,] # the training dataset 
+      get_enet_coef(x, my.fold, my.num=my.num) 
+    }) %>% rbindlist
+
+    # 4. mSVM-RFE
+    dt.cv.svm<-lapply(names(li.fold), function(my.fold){
+      message(paste("Num:",my.num,"Method: mSVM-RFE, Fold:",my.fold))
+      my.tr.index<-li.fold[[my.fold]] # index of training 
+      x<-li.mat[["train"]][["28wk"]][my.tr.index,] # the training dataset 
+      set.seed(333)
+      ranked.features<-colnames(x)[-1][svmRFE(x, k=5, halve.above=100)][1:my.num] # only top x ranked features
+      data.table(method="mSVM-RFE",`fold`=my.fold,feature=ranked.features, score=NA,rank=1:length(ranked.features))
+    }) %>% rbindlist
+
+    # 5-10. Other methods via RFE
+    dt.cv.rfe<-lapply(names(li.methods), function(my.method){
+              # runRFE2 for each repetition
+              lapply(paste0("Rep",1:5), function(iRep){
+                this.fold<-paste(paste0("Fold",1:5),iRep,sep=".") # 5-fold for this repetition
+                message(paste("Num:",my.num,"Method:",my.method, "Fold:",this.fold))
+
+                runRFE2(x=li.mat[["train"]][["28wk"]], my.method=my.method, my.num=my.num, my.index=li.fold[this.fold])
+              }) %>% rbindlist
+    }) %>% rbindlist
+
+    rbind(dt.cv.glp, dt.cv.lasso[method=="LASSO"], dt.cv.enet, dt.cv.svm, dt.cv.rfe)
+  }) # end of dl.kcv
+
+  save(dl.kcv, file=my.RData)
+}
+
+##
+##
+my.RData<-file.path("RData/dl.kcv.result.core17.RData")
+if(file.exists(my.RData)){
+  load(my.RData)
+}else{
+  # for each number of feature: F2, F3, F4, F5, F6
+  dl.kcv.result<-parallel::mclapply(dl.kcv, function(dt.kcv){
+    # features by method and fold
+    dt.foo<-dt.kcv[order(method,fold,feature)][,.(.N,features=paste(feature,collapse=",")),.(method,fold)]
+    my.num<-dt.foo[,unique(N)]
+
+    # features by method, fold and features
+    dt.bar<-dt.kcv[order(method,fold,feature)][,.(.N,features=paste(feature,collapse=",")),.(method,fold)][,.(.N,methods=paste(method,collapse=",")),.(fold,features)][order(fold,-N)]
+
+    # get the CV-LPOCV (or CV-AUC) across 25 folds (i.e. 5-Fold-CV * 5 Rep) 
+    dl.bar<-split(dt.bar, dt.bar$fold) # by each fold
+    dt.kcv.result<-parallel::mclapply(dl.bar, function(dt.baz){
+      my.fold<-dt.baz[,.N,fold]$fold
+      my.index<-li.fold[[my.fold]] # index of training
+
+      # for each list of features in this fold
+      lapply(dt.baz$features, function(i){
+        message(paste("Num:",my.num,", Fold:",my.fold, ", Features:",i))
+        my.feature <- i %>% strsplit(",") %>% unlist
+        get_cv_glm(x=li.mat[["train"]][["28wk"]],my.fold,my.index,my.feature)
+      }) %>% rbindlist # merge all features
+    },mc.cores=1) %>% rbindlist # merge all fold
+
+    merge(dt.foo, dt.kcv.result, by.x=c("fold","features"), by.y=c("fold","predictor"))
+  },mc.cores=1) # parallel by the No. of features
+  save(dl.kcv.result, file=my.RData)
+}
+
+```
+
+```{r kcv_all_method_final_model1}
+my.RData<-file.path("RData/dl.final.models.core17.RData")
+if(file.exists(my.RData)){
+  load(my.RData)
+}else{
+  library(e1071)
+  source('SVM-RFE/msvmRFE.R')
+
+  li.methods<-list(
+    `svmLinear`="svmLinear",
+    `svmRadial`="svmRadial",
+    `nnet`="nnet",
+    `pcaNNet`="pcaNNet",
+    `rfFuncs`=rfFuncs,
+    `nbFuncs`=nbFuncs
+    #`dnn`="dnn", # failed
+    #`lrFuncs`=lrFuncs, # failed
+    #`ldaFuncs`=ldaFuncs, # failed
+    #`treebagFuncs`=treebagFuncs,
+    #`gamFuncs`=gamFuncs,
+    #`lmFuncs`=lmFuncs,
+    )
+
+  li.num<-list(`F2`=2,`F3`=3,`F4`=4,`F5`=5,`F6`=6)
+  x<-li.mat[["train"]][["28wk"]]
+
+  dl.final.models<-lapply(li.num, function(my.num){
+    # 1. glParallel
+    message(paste("Num:",my.num,"Method: glParallel"))
+    my.pattern=paste0("^core17\\.final\\.best",my.num)
+    dt.input<-data.table(
+                    foo=list.files("glParallel/result",pattern=my.pattern),
+                    files=list.files("glParallel/result",pattern=my.pattern,full.names=T)
+                    )[,c("foo1","bar1"):=tstrsplit(foo,"\\.",keep=c(2,3))][,fold:=paste(foo1,bar1,sep=".")][,c("foo","foo1","bar1"):=NULL]
+
+    dt.glp <-apply(dt.input, 1, function(i){
+              my.fold<-i[["fold"]]
+              my.feature<-fread(i["files"])[1][["Best proteins"]] %>% strsplit(",") %>% unlist
+              data.table(method="glParallel",fold=my.fold,feature=my.feature,score=NA,rank=NA)
+              #cbind(`fold`=i[["fold"]],fread(i["files"])[1])
+    }) %>% rbindlist
+
+    # 2. Lasso
+    message(paste("Num:",my.num,"Method: LASSO"))
+    dt.lasso<-get_lasso_coef(x=x, "final", my.num=my.num)
+
+    # 3. ElasticNet
+    message(paste("Num:",my.num,"Method: ENET"))
+    dt.enet<-get_enet_coef(x=x, "final", my.num=my.num)
+
+    # 4. mSVM-RFE
+    message(paste("Num:",my.num,"Method: mSVM-RFE"))
+    set.seed(333)
+    ranked.features<-colnames(x)[-1][svmRFE(x, k=5, halve.above=100)][1:my.num] # only top 4 ranked features
+    dt.svm<-data.table(method="mSVM-RFE",`fold`="final",feature=ranked.features, score=NA, rank=1:length(ranked.features))
+
+    # 5-10. Other methods via RFE: "svmLinear" "svmRadial" "nnet"      "pcaNNet"   "rfFuncs"   "nbFuncs"
+    dt.rfe<-lapply(names(li.methods), function(my.method){
+              message(paste("Num:",my.num,"Method:",my.method))
+              runRFE2(x=x, my.method=my.method, my.num=my.num, my.index=li.fold.final, is.final=T)
+    }) %>% rbindlist
+
+    # compile all the final models #
+    rbind(dt.glp, dt.lasso[method=="LASSO"], dt.enet, dt.svm, dt.rfe)[order(method,feature)]
+  }) # end of dl.final.models
+  save(dl.final.models, file=my.RData)
+} # end of if
+
+my.RData<-file.path("RData/dl.final.result.core17.RData")
+if(file.exists(my.RData)){
+  load(my.RData)
+}else{
+  mat.tr<-li.mat[["train"]][["28wk"]] # training model
+
+  dl.final.result<-lapply(dl.final.models, function(dt.model){
+    dt.final.model<-dt.model[,.(.N,features=paste(feature,collapse=",")),method][order(features)]
+    dt.final<-dt.final.model[,.(.N,methods=paste(method,collapse=',')),features]
+
+    #######################################################################
+    # get LPOCV/AUC from the preterm dataset (NB, 28wk-preterm: training) #
+    #######################################################################
+    dt.final.result<-lapply(dt.final$methods, function(my.methods){
+                          ############################################
+                          # fit the model using the training dataset #
+                          ############################################
+                          my.feature<-dt.final[methods==my.methods]$features %>% strsplit(",") %>% unlist
+                          df.mat.tr<-mat.tr[,c(my.feature,'y')] %>% as.data.frame  # training set
+                          my.model<-glm(y~. , data = df.mat.tr, family = "binomial")
+
+                          ## preterm (NB, 28wk: training dataset where the model was built)
+                          dt.foo1<-lapply(c("12wk","20wk","28wk"), function(my.GA){
+                            message(paste("preterm",my.methods,my.GA,sep=":"))
+                            x<-li.mat[["train"]][[my.GA]]
+                            my.fold<-paste0(my.GA,"(preterm)")
+                            cbind(`methods`=my.methods,
+                                  get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                            )
+                          }) %>% rbindlist
+
+                          ## term (validation)
+                          dt.foo2<-lapply(c("12wk","20wk","28wk","36wk"), function(my.GA){
+                            message(paste("term",my.methods,my.GA,sep=":"))
+                            x<-li.mat[["test"]][[my.GA]]
+                            my.fold<-paste0(my.GA,"(term)")
+                            cbind(`methods`=my.methods,
+                                  get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                            )
+                          }) %>% rbindlist
+                          
+                          ## Munchel 
+                          message(paste("Munchel",my.methods,sep=":"))
+                          x<-li.mat[["munchel"]]
+                          my.fold<-"Munchel"
+                          dt.foo3<-cbind(`methods`=my.methods,
+                                  get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                          )
+
+                          rbind(dt.foo1,dt.foo2,dt.foo3)
+                      }) %>% rbindlist
+    dt.final.result<-dt.final.result[order(fold,-AUC_test)]
+    dt.final.result
+  })
+  save(dl.final.result, file=my.RData)
+}
+```
+
+```{r kcv_enet_lasso_tr_val1}
+my.RData<-file.path("RData/dl.enet.models.core17.RData")
+if(file.exists(my.RData)){
+  load(my.RData)
+}else{
+  li.num<-2:10 %>% as.list
+  names(li.num)=paste0("F",2:10)
+
+  x<-li.mat[["train"]][["28wk"]]
+
+  dl.enet.models<-lapply(li.num, function(my.num){
+    # 2. Lasso
+    message(paste("Num:",my.num,"Method: LASSO"))
+    dt.lasso<-get_lasso_coef(x=x, "final", my.num=my.num)
+
+    # 3. ElasticNet
+    message(paste("Num:",my.num,"Method: ENET"))
+    dt.enet<-get_enet_coef(x=x, "final", my.num=my.num)
+
+    # compile all the final models #
+    rbind(dt.lasso[method=="LASSO"], dt.enet)[order(method,feature)]
+  }) # end of dl.final.models
+  save(dl.enet.models, file=my.RData)
+} # end of if
+
+##
+## ENet and LASSO only using Discovery and Validation datasets
+## 
+my.RData<-file.path("RData/dl.enet.result.core17.RData")
+if(file.exists(my.RData)){
+  load(my.RData)
+}else{
+  mat.tr<-li.mat[["train"]][["28wk"]] # training model
+
+  dl.enet.result<-lapply(dl.enet.models, function(dt.model){
+    dt.final.model<-dt.model[,.(.N,features=paste(feature,collapse=",")),method][order(features)]
+    dt.final<-dt.final.model[,.(.N,methods=paste(method,collapse=',')),features]
+
+    #######################################################################
+    # get LPOCV/AUC from the preterm dataset (NB, 28wk-preterm: training) #
+    #######################################################################
+    dt.final.result<-lapply(dt.final$methods, function(my.methods){
+                          ############################################
+                          # fit the model using the training dataset #
+                          ############################################
+                          my.feature<-dt.final[methods==my.methods]$features %>% strsplit(",") %>% unlist
+                          df.mat.tr<-mat.tr[,c(my.feature,'y')] %>% as.data.frame  # training set
+                          my.model<-glm(y~. , data = df.mat.tr, family = "binomial")
+
+                          ## preterm (NB, 28wk: training dataset where the model was built)
+                          dt.foo1<-lapply(c("12wk","20wk","28wk"), function(my.GA){
+                            message(paste("preterm",my.methods,my.GA,sep=":"))
+                            x<-li.mat[["train"]][[my.GA]]
+                            my.fold<-paste0(my.GA,"(preterm)")
+                            cbind(`methods`=my.methods,
+                                  get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                            )
+                          }) %>% rbindlist
+
+                          ## term (validation)
+                          dt.foo2<-lapply(c("12wk","20wk","28wk","36wk"), function(my.GA){
+                            message(paste("term",my.methods,my.GA,sep=":"))
+                            x<-li.mat[["test"]][[my.GA]]
+                            my.fold<-paste0(my.GA,"(term)")
+                            cbind(`methods`=my.methods,
+                                  get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                            )
+                          }) %>% rbindlist
+                          
+                          ## Munchel 
+                          message(paste("Munchel",my.methods,sep=":"))
+                          x<-li.mat[["munchel"]]
+                          my.fold<-"Munchel"
+                          dt.foo3<-cbind(`methods`=my.methods,
+                                  get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                          )
+
+                          rbind(dt.foo1,dt.foo2,dt.foo3)
+                      }) %>% rbindlist
+    dt.final.result<-dt.final.result[order(fold,-AUC_test)]
+    dt.final.result
+  }) # end of dl.enet.models
+  save(dl.enet.result, file=my.RData)
+}
+
+
+#
+# The final best models
+#
+my.RData<-file.path("RData/dt.best.result.core17.RData")
+if(file.exists(my.RData)){
+  load(my.RData)
+}else{
+  my.targets<-c("LEP","PAPPA2","LEP,PAPPA2",
+                "LEP,LY6G6D,PAPPA2" # best performing LASSO 3-mRNA model
+                )
+
+  mat.tr<-li.mat[["train"]][["28wk"]] # training model
+  mat.tr<-cbind(mat.tr, "LEP_PAPPA2"=mat.tr[,"LEP"] * mat.tr[,"PAPPA2"])
+
+  #######################################################################
+  # get LPOCV/AUC from the preterm dataset (NB, 28wk-preterm: training) #
+  #######################################################################
+  my.targets<-"LEP_PAPPA2"
+
+  dt.best.result<-lapply(my.targets, function(my.proteins){
+                        ############################################
+                        # fit the model using the training dataset #
+                        ############################################
+                        my.feature<-strsplit(my.proteins,",") %>% unlist
+                        df.mat.tr<-mat.tr[,c(my.feature,'y')] %>% as.data.frame  # training set
+                        my.model<-glm(y~. , data = df.mat.tr, family = "binomial")
+
+                        ## preterm (NB, 28wk: training dataset where the model was built)
+                        dt.foo1<-lapply(c("12wk","20wk","28wk"), function(my.GA){
+                          message(paste("preterm",my.GA,my.proteins,sep=":"))
+                          x<-li.mat[["train"]][[my.GA]]
+                          x<-cbind(x, "LEP_PAPPA2"=x[,"LEP"] * x[,"PAPPA2"])
+                          my.fold<-paste0(my.GA,"(preterm)")
+                          get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                        }) %>% rbindlist
+
+                        ## term (validation)
+                        dt.foo2<-lapply(c("12wk","20wk","28wk","36wk"), function(my.GA){
+                          message(paste("term",my.GA,my.proteins,sep=":"))
+                          x<-li.mat[["test"]][[my.GA]]
+                          x<-cbind(x, "LEP_PAPPA2"=x[,"LEP"] * x[,"PAPPA2"])
+                          my.fold<-paste0(my.GA,"(term)")
+                          get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                        }) %>% rbindlist
+                        
+                        ## Munchel 
+                        message(paste("Munchel",my.proteins,sep=":"))
+                        x<-li.mat[["munchel"]]
+                        x<-cbind(x, "LEP_PAPPA2"=x[,"LEP"] * x[,"PAPPA2"])
+                        my.fold<-"Munchel"
+                        dt.foo3<-get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                        rbind(dt.foo1,dt.foo2,dt.foo3)
+                    }) %>% rbindlist
+  save(dt.best.result, file=my.RData)
+}
+```
+
+
+```{r kcv_comp_res1, eval=F}
+if(F){
+    library(ggplot2)
+    ggplot(dt.kcv.all, aes(method, mean_AUC_test/100)) + #, col=Measure)) +
+      geom_pointrange(aes(ymin=mean_AUC_test_lo/100, ymax=mean_AUC_test_hi/100),position=position_dodge(width=0.5)) +
+      #scale_color_manual(values=cbPalette2) +
+      scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+      ylab("AUC") + xlab("Methods") +
+      theme_Publication() + 
+      theme(axis.text.x = element_text(angle = 45, hjust=1), legend.position="")
+}
+
+if(F){
+  dl.kcv.result[["F6"]][fold=="Fold5.Rep5"] # LASSO missing (no result)
+  dl.kcv[["F6"]][fold=="Fold5.Rep5",.N,method] # LASSO missing (no result)
+
+  ##
+  lapply(dl.kcv.result[c("F6")], function(DT) DT[,.(.N, 
+      N_NA_LPOCV=sum(ifelse(is.na(LPOCV_test),1,0)),mean_AUC=mean(AUC), mean_AUC_lo=mean(AUC_lo), mean_AUC_hi=mean(AUC_hi),
+      mean_LPOCV=mean(LPOCV), mean_LPOCV_lo=mean(LPOCV_lo), mean_LPOCV_hi=mean(LPOCV_hi),
+      mean_AUC_test=mean(AUC_test), mean_AUC_test_lo=mean(AUC_test_lo), mean_AUC_test_hi=mean(AUC_test_hi),
+      mean_LPOCV_test=mean(LPOCV_test,na.rm=T), mean_LPOCV_test_lo=mean(LPOCV_test_lo,na.rm=T), mean_LPOCV_test_hi=mean(LPOCV_test_hi,na.rm=T)
+      ),method][order(-mean_AUC_test)]
+  )
+
+  ##
+  lapply(dl.kcv.result, function(DT) DT[,.(.N, 
+      mean_AUC_test=mean(AUC_test), mean_AUC_test_lo=mean(AUC_test_lo), mean_AUC_test_hi=mean(AUC_test_hi)
+      ),method][,Rank:=frank(-mean_AUC_test)][order(Rank)]
+  )
+  (dt.foo<-lapply(dl.kcv.result, function(DT) DT[,.(.N, 
+      mean_AUC_test=mean(AUC_test), mean_AUC_test_lo=mean(AUC_test_lo), mean_AUC_test_hi=mean(AUC_test_hi)
+      ),method][,Rank:=frank(-mean_AUC_test)][order(Rank)]
+  ) %>% rbindlist )
+  dt.foo[,.(.N,N_test=sum(N),rankSum=sum(Rank),meanRank=sum(Rank)/5,meanAUC=mean(mean_AUC_test)),method][order(rankSum)]
+
+# Q: which number of feature shows the best based on 5-fold CV with 5 rep
+  dl.kcv.result[[1]] #[,.N,features]
+  (dt.foo<-lapply(names(dl.kcv.result), function(NF) dl.kcv.result[[NF]][,.(.N,`NF`=NF,
+      mean_AUC_test=mean(AUC_test), mean_AUC_test_lo=mean(AUC_test_lo), mean_AUC_test_hi=mean(AUC_test_hi)
+      ),.(method)][,Rank:=frank(-mean_AUC_test)][order(Rank)]
+  ) %>% rbindlist )
+  dt.foo[method=="ENet1"][order(method,-mean_AUC_test)]
+
+# Q: feature frequencies in the models
+  lapply(dl.kcv, function(DT){
+    #DT[,.(.N,Freq=.N/275),feature][order(-Freq)] # 275 = 5*5*11 (25 tests across 11 methods)
+    DT[method=="ENet1",.(.N,Freq=.N/25),feature][order(-Freq)] # only for ENet1
+    #DT[order(method,feature)][,.(.N,features=paste(feature,collapse=",")),.(method,fold)][method=="ENet1"][,.N,features][order(-N)]
+    #merge(DT[method=="ENet1",.(.N,Freq=.N/25),feature][order(-Freq)],DT[method=="ENet2",.(.N,Freq=.N/25),feature][order(-Freq)],by="feature")
+    #merge(DT[method=="ENet1",.(.N,Freq=.N/25),feature][order(-Freq)],DT[method=="LASSO",.(.N,Freq=.N/25),feature][order(-Freq)],by="feature")[order(-Freq.x)]
+  })
+
+  ## final LASSO/ENet model (mRNAs ordered by rank)
+  load("RData/dl.enet.models.core17.RData")
+  (lapply(names(dl.enet.models), function(FN) 
+         dl.enet.models[[FN]][method %in% c("ENet1","LASSO")][order(rank)][,.(FN=FN,features=paste(feature,collapse=",")),method]
+  ) %>% rbindlist)[order(method,FN)]
+
+  ## final ENet & model (prterm-28wk)
+  (dt.enet.tr<-lapply(names(dl.final.result), function(FN){
+    dl.final.result[[FN]][grepl("ENet",methods) & fold=="28wk(preterm)",.(Method="ENet",FN=FN,predictor,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100,LPOCV=LPOCV_test/100,LPOCV_lo=LPOCV_test_lo/100,LPOCV_hi=LPOCV_test_hi/100)]
+  }) %>% rbindlist)
+  (dt.lasso.tr<-lapply(names(dl.final.result), function(FN){
+    dl.final.result[[FN]][grepl("LASSO",methods) & fold=="28wk(preterm)",.(Method="LASSO",FN=FN,predictor,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100,LPOCV=LPOCV_test/100,LPOCV_lo=LPOCV_test_lo/100,LPOCV_hi=LPOCV_test_hi/100)]
+  }) %>% rbindlist)
+  rbind(dt.enet.tr, dt.lasso.tr)
+
+  (dt.nnet.tr<-lapply(names(dl.final.result), function(FN){
+    dl.final.result[[FN]][grepl("nnet",methods) & fold=="28wk(preterm)",.(Method="nnet",FN=FN,predictor,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100,LPOCV=LPOCV_test/100,LPOCV_lo=LPOCV_test_lo/100,LPOCV_hi=LPOCV_test_hi/100)]
+  }) %>% rbindlist)
+
+  (dt.glp.tr<-lapply(names(dl.final.result), function(FN){
+    dl.final.result[[FN]][grepl("glParallel",methods) & fold=="28wk(preterm)",.(Method="glParallel",FN=FN,predictor,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100,LPOCV=LPOCV_test/100,LPOCV_lo=LPOCV_test_lo/100,LPOCV_hi=LPOCV_test_hi/100)]
+  }) %>% rbindlist)
+
+  ## Validation result using Enet & LASSO 
+  dt.enet.val<-lapply(names(dl.final.result), function(FN){
+    dl.final.result[[FN]][grepl("ENet",methods) & grepl("\\(term",fold)][,.(FN=FN,Method="ENet",predictor,fold,AUC_test,AUC_test_lo,AUC_test_hi)]
+  }) %>% rbindlist
+  dt.lasso.val<-lapply(names(dl.final.result), function(FN){
+    dl.final.result[[FN]][grepl("LASSO",methods) & grepl("\\(term",fold)][,.(FN=FN,Method="LASSO",predictor,fold,AUC_test,AUC_test_lo,AUC_test_hi)]
+  }) %>% rbindlist
+  rbind(dt.enet.val, dt.lasso.val)
+
+  ##
+  ##
+  lapply(dl.final.models, function(DT) DT[,.(features=paste(feature,collapse=",")),method][,.(methods=paste(method,collapse=",")),features])
+
+  dl.final.result[["F4"]][fold=="28wk(preterm)"] # the training dataset
+  dl.final.result[["F4"]][fold=="12wk(term)"] # validation on this fold
+  dl.final.result[["F4"]][fold=="20wk(term)"] # validation on this fold 
+  dl.final.result[["F4"]][fold=="28wk(term)"] # validation on this fold 
+  dl.final.result[["F4"]][fold=="36wk(term)"] # validation on this fold 
+
+  # get the best one for each test data set
+  lapply(dl.final.result, function(DT) DT[order(fold,-AUC_test)][,.SD[1],.(fold)][,.(methods,fold,predictor,AUC_test)])
+
+}
+```
+
+# Reminder:  training, validation dataset and various workflow.
+
+## The training samples (pre-term)
+```{r tr_samples_meta}
+  xtabs(~Condition+GA, data=dt.samples[Type=="preterm",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=277 samples
+  #xtabs(~Condition+GA,dt.samples[Type=="preterm"]) %>% addmargins # this is for sequencing data (n=2 were sequenced twice) - see below
+  if(F){
+    dt.samples[Type=="preterm"] # n=279
+    dt.samples[Type=="preterm",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)] # n=277 samples
+    dt.samples[Type=="preterm",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)][N>1]
+
+    dt.samples[Type=="preterm" & grepl("-b$",SampleID)] #
+  }
+```
+
+## The workflow 1 - top 1% genes supported by any of the four criteria
+```{r work-flowv1, fig.cap="cfRNA quantification work flow"}
+#todo
+# dot ~/Devel/Rmd/Plasma-RNA-2021/cfRNA_quant_workflow2c.gv -Tpdf -o ~/Devel/Rmd/Plasma-RNA-2021/cfRNA_quant_workflow2c.pdf
+knitr::include_graphics("cfRNA_quant_workflow2c.pdf")
+```
+
+## The workflow 2 - top 1% genes supported by all of the four criteria
+```{r work-flowv2, fig.cap="cfRNA quantification work flow 2"}
+#todo
+# dot ~/Devel/Rmd/Plasma-RNA-2021/cfRNA_quant_workflow2d.gv -Tpdf -o ~/Devel/Rmd/Plasma-RNA-2021/cfRNA_quant_workflow2d.pdf
+knitr::include_graphics("cfRNA_quant_workflow2d.pdf")
+```
+
+## The workflow 3 - top 1% genes (>=LEP) supported by any of the four criteria
+```{r work-flowv3, fig.cap="cfRNA quantification workflow 3"}
+#todo
+# dot ~/Devel/Rmd/Plasma-RNA-2021/cfRNA_quant_workflow3.gv -Tpdf -o ~/Devel/Rmd/Plasma-RNA-2021/cfRNA_quant_workflow3.pdf
+knitr::include_graphics("cfRNA_quant_workflow3.pdf")
+```
+
+## The workflow 4 - CPM>=LEP & top 1% genes supported by any of the four criteria
+```{r work-flowv4, fig.cap="cfRNA quantification workflow 4"}
+# todo
+# dot ~/Devel/Rmd/Plasma-RNA-2021/cfRNA_quant_workflow4.gv -Tpdf -o ~/Devel/Rmd/Plasma-RNA-2021/cfRNA_quant_workflow4.pdf
+knitr::include_graphics("cfRNA_quant_workflow4.pdf")
+```
+
+## Top 1% DEGs (a total of `r nrow(dt.venn.top1pctZ)` genes)
+```{r top1pct_deg_regz, fig.cap="Top 1% DEGs (AIC & AUC based on z-score)"}
+  ggvenn::ggvenn(venn.top1pctZ,fill_color=rep("grey100",length(venn.top1pctZ)),set_name_size=7,text_size=7,stroke_size=.7,show_percentage=FALSE)
+```
+
+## The 17 genes (ordered by AUC)
+```{r uni_logreg_core_deg1}
+  dt.OR[,.(Gene,OR,"log(OR) range"="",AUC,"AUC range"="",AIC,BIC)] %>%
+  kbl(booktabs=T, caption="Univariable logistic regression of the 17 genes",digits=2) %>%
+  kable_styling(latex_options = c("striped"),font_size=5.5) %>%
+  column_spec(3, image = spec_pointrange(
+    x = log(dt.OR$OR),
+    xmin = log(dt.OR$odds_lo),
+    xmax = log(dt.OR$odds_hi),
+    vline = 0,
+    height=22)
+  ) %>% 
+  column_spec(5, image = spec_pointrange(
+    x = dt.OR$AUC,
+    xmin = dt.OR$auc_lo,
+    xmax = dt.OR$auc_hi,
+    vline = 90,
+    height=22)
+  )
+```
+
+
+## The validation samples (term dataset)
+```{r val_samples_meta}
+  xtabs(~Condition+GA, data=dt.colDataTerm[,.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=474 samples
+```
+
+## Validation AUC results (term dataset)
+```{r res_val1, fig.cap="AUC of the validation (term) datasets"}
+  ggplot(dt.result2[,.(N,WF,Genes,GA,AUC=AUC/100,AUC_lo=AUC_lo/100,AUC_hi=AUC_hi/100)], aes(GA, AUC, col=WF)) +
+    geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi),position=position_dodge(width=0.5)) +
+    facet_wrap(~N) +
+    theme_Publication()
+```
+
+## Validation LPOCV results (term dataset)
+```{r term_res_lpocv1, fig.cap="LOPCV of the term validation datasets"}
+  # dt.result2 defined within cfRNA.term.PE.validation.POPS-2022.GRCh38.88.Rmd
+  ggplot(dt.result2[,.(N,WF,Genes,GA,LPOCV=LPOCV/100)], aes(GA, LPOCV, col=WF)) +
+    geom_point(size=3, position=position_dodge(width=.5)) +
+    geom_linerange(aes(ymin=0,ymax=LPOCV),position=position_dodge(width=.5)) +
+    facet_wrap(~N) +
+    theme_Publication()
+```
+
+## Best 10 models from the validation (term)
+```{r res_val2}
+  dt.result2[order(-LPOCV)][1:10,.(N,WF,Genes,GA,AUC=AUC/100,Boot=Boot/100,KFCV=KFCV/100,LPOCV=LPOCV/100)] %>%
+    kbl(booktabs=T,caption="Best 10 results (term dataset)",digits=4) %>%
+    kable_styling(latex_options = c("striped","scale_down"))
+```
+
+## Validation results using 12wk/20wk pre-term dataset
+```{r preterm_res_val1, fig.cap="AUC of the validation datasets"}
+  ggplot(dt.result3[,.(N,WF,Genes,GA,AUC=AUC/100,AUC_lo=AUC_lo/100,AUC_hi=AUC_hi/100)], aes(GA, AUC, col=WF)) +
+    geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi),position=position_dodge(width=0.5)) +
+    facet_wrap(~N) +
+    theme_Publication()
+
+```
+
+## Validation results using 12wk/20wk pre-term dataset (LPOCV)
+```{r preterm_res_val2, fig.cap="LOPCV of the preterm validation datasets"}
+  ggplot(dt.result3[,.(N,WF,Genes,GA,LPOCV=LPOCV/100)], aes(GA, LPOCV, col=WF)) +
+    geom_point(size=3, position=position_dodge(width=.5)) +
+    geom_linerange(aes(ymin=0,ymax=LPOCV),position=position_dodge(width=.5)) +
+    facet_wrap(~N) +
+    theme_Publication()
+```
+
+## Best 10 models from the preterm 12wk and 20wk validation
+```{r preterm_res_val3}
+  dt.result3[order(-LPOCV)][1:10,.(N,WF,Genes,GA,AUC=AUC/100,Boot=Boot/100,KFCV=KFCV/100,LPOCV=LPOCV/100)] %>%
+    kbl(booktabs=T,caption="Best 10 results",digits=4) %>%
+    kable_styling(latex_options = c("striped","scale_down"))
+```
+
+## Validation summary (WF2 + `glParallel`)
+```{r WF2_munchel_logit_pappa2_lep_table1, eval=T}
+  dt.foo[,.(Predictor,Model,AUC=AUC/100,"AUC range"="")] %>%
+    kbl(booktabs=T,caption="The validation summary",digits=4) %>%
+    kable_styling(latex_options = c("striped"),font_size=5) %>%
+    pack_rows("Validation (28wk)",1,6) %>%
+    pack_rows("Validation (36wk)",7,12) %>%
+    pack_rows("Munchel",13,18) %>%
+    column_spec(4, image = spec_pointrange(
+      x = dt.foo$AUC/100,
+      xmin = dt.foo$AUC_lo/100,
+      xmax = dt.foo$AUC_hi/100,
+      vline = .8,
+      height=22)
+    )
+```
+
+# K-Fold CV to evaluate the best performing method.
+
+## Methods
++ Following 10 feature selection ML methods tested:
+  + `glParallel`, `Lasso`, `Elastic Net`. 
+  + 3 `SVM` methods: `mSVM-RFE`, `svmLinear`, and `svmRadial`.
+  + 2 `Nueral-net` methods: `nnet`, and `pcaNNet`.
+  + 1 `random forest` (via `randomForest` R package) 
+  + 1 `Naive Bayes` (via `klaR` R package).
++ Target features restricted to the 17-core DEGs and 4-gene models. 
++ 5-fold CV with 5 repetitions using the 28wk preterm dataset. 
++ The cross-validated AUCs were averaged across 25 tests.
++ The final 4-gene models were trained using 28wk-preterm dataset (i.e discovery) and their predictive performance were tested using term dataset (i.e. validation) and Munchel. 
+
+## Cross-validated AUC
+```{r kcv-result-auc1}
+dt.foo<-rbind(
+  dt.kcv.all[method %in% c("glParallel","Lasso","ENet")],
+  dt.kcv.all[method %in% c("mSVM-RFE","svmLinear","svmRadial")],
+  dt.kcv.all[method %in% c("nnet","pcaNNet")],
+  dt.kcv.all[method %in% c("rfFuncs","nbFuncs")]
+  )
+
+dt.bar<-dt.foo[,.(method,mean_CV_AUC=mean_AUC_test/100,meanAUC_lo=mean_AUC_test_lo/100,meanAUC_hi=mean_AUC_test_hi/100)]
+
+  dt.bar[,.(method,mean_CV_AUC,"AUC range"="")] %>%
+    kbl(booktabs=T,caption="Cross-validated AUCs using various ML methods",digits=4) %>%
+    kable_styling(latex_options = c("striped"),font_size=6.6) %>%
+    pack_rows("Usual ones",1,3) %>%
+    pack_rows("SVM",4,6) %>%
+    pack_rows("Neural network",7,8) %>%
+    pack_rows("Random forest",9,9) %>%
+    pack_rows("Naive Bayes",10,10) %>%
+    column_spec(3, image = spec_pointrange(
+      x = dt.bar$mean_CV_AUC,
+      xmin = dt.bar$meanAUC_lo,
+      xmax = dt.bar$meanAUC_hi,
+      vline = .8,
+      height=22)
+    )
+```
+
+## The final 4-gene models trained on the preterm-28wk dataset
+```{r kcv-final-model1}
+  dt.bar<-dt.final.result[fold=="28wk(preterm)",.(methods,predictor,AUC=AUC_test/100,AUC_lo=AUC_test_lo/100,AUC_hi=AUC_test_hi/100)][order(-AUC)]
+
+  dt.bar[,.(methods,predictor,AUC,"AUC range"="")] %>%
+    kbl(booktabs=T,caption="The final 4-gene models from various feature selections") %>%
+    kable_styling(latex_options = c("striped"),font_size=6) %>%
+    column_spec(4, image = spec_pointrange(
+      x = dt.bar$AUC,
+      xmin = dt.bar$AUC_lo,
+      xmax = dt.bar$AUC_hi,
+      vline = .9,
+      height=24)
+    )
+```
+
+## Validation of 4-gene models using term dataset (AUC)
+```{r kcv-val-term-auc1, fig.cap="AUC using validation dataset (term)"}
+  dt.foo<-dt.final.result[grepl("\\(term\\)",fold),.(methods,GA=substr(fold,1,4),predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)][order(-AUC_test)]
+
+  ggplot(dt.foo, aes(GA,AUC_test,col=methods)) +
+    geom_pointrange(aes(ymin=AUC_test_lo, ymax=AUC_test_hi),position=position_dodge(width=0.5)) +
+    scale_color_manual(values=cbPalette2) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ylab("AUC") + xlab("Gestational age (validation dataset)") +
+    theme_Publication() + 
+    theme(axis.text.x = element_text(angle = 45, hjust=1)) 
+```
+
+## Validation of 4-gene models using 12wk-term dataset (AUC)
+```{r kcv-val-term-auc-12wk, fig.cap="AUC using 12wk-term dataset"}
+  dt.bar<-dt.final.result[fold=="12wk(term)",.(methods,predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)][order(-AUC_test)]
+
+  dt.bar[,.(methods,predictor,AUC_test,"AUC range"="")] %>%
+    kbl(booktabs=T,caption="The predictive performance of final 4-gene models using 12wk-term") %>%
+    kable_styling(latex_options = c("striped"),font_size=6) %>%
+    column_spec(4, image = spec_pointrange(
+      x = dt.bar$AUC_test,
+      xmin = dt.bar$AUC_test_lo,
+      xmax = dt.bar$AUC_test_hi,
+      vline = .8,
+      height=24)
+    )
+```
+
+## Validation of 4-gene models using 20wk-term dataset (AUC)
+```{r kcv-val-term-auc-20wk, fig.cap="AUC using 20wk-term dataset"}
+  dt.bar<-dt.final.result[fold=="20wk(term)",.(methods,predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)][order(-AUC_test)]
+
+  dt.bar[,.(methods,predictor,AUC_test,"AUC range"="")] %>%
+    kbl(booktabs=T,caption="The predictive performance of final 4-gene models using 20wk-term") %>%
+    kable_styling(latex_options = c("striped"),font_size=6) %>%
+    column_spec(4, image = spec_pointrange(
+      x = dt.bar$AUC_test,
+      xmin = dt.bar$AUC_test_lo,
+      xmax = dt.bar$AUC_test_hi,
+      vline = .8,
+      height=24)
+    )
+```
+
+## Validation of 4-gene models using 28wk-term dataset (AUC)
+```{r kcv-val-term-auc-28wk, fig.cap="AUC using 28wk-term dataset"}
+  dt.bar<-dt.final.result[fold=="28wk(term)",.(methods,predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)][order(-AUC_test)]
+
+  dt.bar[,.(methods,predictor,AUC_test,"AUC range"="")] %>%
+    kbl(booktabs=T,caption="The predictive performance of final 4-gene models using 28wk-term") %>%
+    kable_styling(latex_options = c("striped"),font_size=6) %>%
+    column_spec(4, image = spec_pointrange(
+      x = dt.bar$AUC_test,
+      xmin = dt.bar$AUC_test_lo,
+      xmax = dt.bar$AUC_test_hi,
+      vline = .8,
+      height=24)
+    )
+```
+
+## Validation of 4-gene models using 36wk-term dataset (AUC)
+```{r kcv-val-term-auc-36wk, fig.cap="AUC using 36wk-term dataset"}
+  dt.bar<-dt.final.result[fold=="36wk(term)",.(methods,predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)][order(-AUC_test)]
+
+  dt.bar[,.(methods,predictor,AUC_test,"AUC range"="")] %>%
+    kbl(booktabs=T,caption="The predictive performance of final 4-gene models using 36wk-term") %>%
+    kable_styling(latex_options = c("striped"),font_size=6) %>%
+    column_spec(4, image = spec_pointrange(
+      x = dt.bar$AUC_test,
+      xmin = dt.bar$AUC_test_lo,
+      xmax = dt.bar$AUC_test_hi,
+      vline = .8,
+      height=24)
+    )
+```
+
+```{r kcv-val-term-lpocv1, fig.cap="LPOCV using validation dataset (term)", eval=F}
+## Validation of 4-gene models using term dataset (LPOCV)
+  dt.foo<-dt.final.result[grepl("(term)",fold),.(methods,GA=substr(fold,1,4),predictor,LPOCV_test=LPOCV_test/100,LPOCV_test_lo=LPOCV_test_lo/100,LPOCV_test_hi=LPOCV_test_hi/100)]
+
+  ggplot(dt.foo, aes(GA,LPOCV_test,col=methods)) +
+    geom_pointrange(aes(ymin=LPOCV_test_lo, ymax=LPOCV_test_hi),position=position_dodge(width=0.5)) +
+    scale_color_manual(values=cbPalette2) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ylab("LPOCV AUC") + xlab("Gestational age (validation dataset)") +
+    theme_Publication() + 
+    theme(axis.text.x = element_text(angle = 45, hjust=1)) 
+
+```
+
+## Validation of 4-gene models using Munchel dataset (AUC)
+```{r kcv-val-munchel-auc1, fig.cap="AUC using Munchel dataset"}
+  dt.foo<-dt.final.result[fold=="Munchel",.(methods,predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)]
+
+  ggplot(dt.foo, aes(methods,AUC_test)) +
+    geom_pointrange(aes(ymin=AUC_test_lo, ymax=AUC_test_hi),position=position_dodge(width=0.5)) +
+    scale_color_manual(values=cbPalette2) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ylab("AUC") + xlab("4-gene models from chosen method(s)") +
+    theme_Publication() + 
+    theme(axis.text.x = element_text(angle = 45, hjust=1)) 
+```
+
+```{r kcv-val-munchel-lpocv1, fig.cap="LPOCV using Munchel dataset", eval=F}
+## Validation of 4-gene models using Munchel  dataset (LPOCV)
+  dt.foo<-dt.final.result[fold=="Munchel",.(methods,predictor,LPOCV_test=LPOCV_test/100,LPOCV_test_lo=LPOCV_test_lo/100,LPOCV_test_hi=LPOCV_test_hi/100)]
+
+  ggplot(dt.foo, aes(methods,LPOCV_test)) +
+    geom_pointrange(aes(ymin=LPOCV_test_lo, ymax=LPOCV_test_hi),position=position_dodge(width=0.5)) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    ylab("LPOCV AUC") + xlab("4-gene models from chosen method(s)") +
+    theme_Publication() + 
+    theme(axis.text.x = element_text(angle = 45, hjust=1)) 
+```
+
+## Performance of 4-gene models using Munchel
+```{r kcv-val-munchel}
+  dt.bar<-dt.final.result[fold=="Munchel",.(methods,predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)][order(-AUC_test)]
+
+  dt.bar[,.(methods,predictor,AUC_test,"AUC range"="")] %>%
+    kbl(booktabs=T,caption="The predictive performance of final 4-gene models using Munchel") %>%
+    kable_styling(latex_options = c("striped"),font_size=6) %>%
+    column_spec(4, image = spec_pointrange(
+      x = dt.bar$AUC_test,
+      xmin = dt.bar$AUC_test_lo,
+      xmax = dt.bar$AUC_test_hi,
+      vline = .9,
+      height=24)
+    )
+```
+
+## The End
+```{r session-info,echo=T}
+R.version 
+```
+

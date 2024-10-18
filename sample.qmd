@@ -1,0 +1,34 @@
+# Sample Information {#sample-info}
+Below shows the full sample information:
+
+```{r dt-samples}
+#| label: tbl-samples
+#| tbl-cap: "Sample used in this study"
+
+library(DT)
+dt.samples<-fread("static/R/data/dt.samples.csv")
+DT::datatable(dt.samples)
+```
+
+Pleae note that:
+
+* GS-B-374-UW is data from the same plasma sample as GS-B-374-UW-b. Both failed QC
+* GS-59-CX is data from the same plasma sample as GS-59-CX-b. Both failed QC
+* GS-179-HQ is data from the same plasma sample as GS-179-HQ-b. Only GS-179-HQ-b passed QC
+
+
+## Discovery Cohort (preterm dataset)
+```{r discovery-preterm-samples}
+#| label: lst-preterm-samples
+#| lst-label: lst-preterm-samples
+#| lst-cap: "Tabulate the discovery dataset"
+xtabs(~GA+Condition, dt.samples[Cohort=="preterm"]) %>% addmargins
+```
+
+## Validation Cohort (term dataset)
+```{r validation-term-samples}
+#| label: lst-term-samples
+#| lst-label: lst-term-samples
+#| lst-cap: "Tabulate the validation dataset"
+xtabs(~GA+Condition, dt.samples[Cohort=="term"]) %>% addmargins
+```

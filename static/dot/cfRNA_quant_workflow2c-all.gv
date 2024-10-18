@@ -1,0 +1,93 @@
+digraph G {
+  /*rankdir=LR; */
+  node [fontname = "Handlee", color=black, fontcolor=black];
+  edge [fontname = "Handlee", color=black, fontcolor=black];
+
+  placenta[
+    label = "POPS\nplacenta RNA-Seq";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+  plasma [
+    label = "POPS\nplasma RNA-Seq";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+  deg_pops [
+    label = "DEG";
+    shape = rect;
+    style = "rounded,filled";
+    fontcolor = white;
+  ];
+  top1_deg[
+    label = "Top 1% DEG";
+    shape = rect;
+    style = "rounded,filled";
+    fontcolor = white;
+  ];
+  core_deg[
+    label = "Core DEG";
+    shape = rect;
+    style = "rounded,filled";
+    fontcolor = white;
+  ];
+  Non_zero[
+    label = "Non-zero\ncoefficient genes";
+    shape = rect;
+  ];
+  subset1 [
+    label = "Best subset1";
+    shape = rect;
+    style = "rounded,filled";
+    fontcolor = white;
+  ];
+  subset2 [
+    label = "Best subset2";
+    shape = rect;
+    style = "rounded,filled";
+    fontcolor = white;
+  ];
+  pops[
+    label = "POPS placenta\ntranscriptome";
+    shape = rect;
+    color = black;
+    fontcolor = black;
+  ];
+  quant_pops [
+    label = "Quantification";
+    shape = rect;
+  ];
+  check_top1[
+    label = "Top1%";
+    shape = diamond;
+  ];
+  check_all_method[
+    label = "All methods";
+    shape = diamond;
+  ];
+
+  placenta-> pops[label="StringTie"];
+  plasma -> quant_pops[label="Salmon (SA-mode)"]
+  pops-> quant_pops[label="Salmon (index)"];
+
+  quant_pops-> deg_pops[label="DESeq2"];
+  quant_pops-> deg_pops[label="edgeR"];
+  quant_pops-> deg_pops[label="Logistic\nRegression"];
+
+  deg_pops-> check_top1;
+  check_top1-> top1_deg[label="Yes"];
+  top1_deg-> Non_zero[label="LASSO+ElasticNet"];
+  Non_zero-> subset1[label="glParallel"];
+
+  deg_pops-> check_all_method;
+  check_all_method-> core_deg[label="Yes"];
+  core_deg-> subset2[label="glParallel"];
+
+
+  {rank=same; deg_pops subset1 subset2} 
+  /*
+  {rank=same; gtex chess placenta} 
+*/
+}

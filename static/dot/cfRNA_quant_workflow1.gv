@@ -1,0 +1,63 @@
+digraph G {
+  node [fontname = "Handlee", color=black, fontcolor=black];
+  edge [fontname = "Handlee", color=black, fontcolor=black];
+
+  gtex [
+    label = "GTEx";
+    shape = rect;
+    color = grey;
+    fontcolor = grey;
+  ];
+  chess [
+    label = "CHESS";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+  placenta[
+    label = "POPS\nplacenta RNA-Seq";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+  plasma [
+    label = "POPS\nplasma RNA-Seq";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+  deg [
+    label = "DEG";
+    shape = rect;
+    style = "rounded,filled";
+    fontcolor = white;
+  ];
+  cpops[
+    label = "CHESS+POPS\n(CPOPS)";
+    shape = rect;
+    color = black;
+    fontcolor = black;
+  ];
+  quant [
+    label = "Quantification";
+    shape = rect;
+  ];
+  check_novel [
+    label = "Novel?";
+    shape = diamond;
+  ];
+
+  gtex-> chess[color=grey; fontcolor=grey; label="StringTie"];
+  chess-> cpops;
+  cpops-> quant[label="Salmon (index)"];
+  quant-> deg[label="DESeq2+edgeR"];
+
+  placenta-> check_novel[label="StringTie"];
+  check_novel -> cpops[label="Yes"];
+
+  plasma -> quant[label="Salmon (SA-mode)"]
+
+  {rank=same; gtex chess placenta} 
+  /*
+  {rank=same; dep best4} */
+}

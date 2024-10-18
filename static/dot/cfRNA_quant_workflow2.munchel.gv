@@ -1,0 +1,38 @@
+digraph G {
+  /*rankdir=LR; */
+  node [fontname = "Handlee", color=black, fontcolor=black];
+  edge [fontname = "Handlee", color=black, fontcolor=black];
+
+  quant_munchel [
+    label = "Quantification\n(Munchel)";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+
+  best_model [
+    label = "Best model\n(Discovery)";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+
+  predict [
+    label = "Predict the outcome\nof Munchel dataset";
+    shape = rect;
+  ];
+
+  score [
+    label = "Predictive performance\nof best model";
+    style = "rounded,filled";
+    fillcolor = "darkgoldenrod2"
+    shape = rect;
+    color = black;
+  ];
+
+  quant_munchel -> predict 
+  best_model -> predict;
+  predict -> score;
+
+/*  {rank=same; predict best_model} */
+}

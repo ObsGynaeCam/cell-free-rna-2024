@@ -1,0 +1,4 @@
+*.swp
+/.quarto/
+/_site/
+/docs/

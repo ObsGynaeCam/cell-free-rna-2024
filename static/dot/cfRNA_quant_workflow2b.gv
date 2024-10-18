@@ -1,0 +1,43 @@
+digraph G {
+  node [fontname = "Handlee", color=black, fontcolor=black];
+  edge [fontname = "Handlee", color=black, fontcolor=black];
+
+  placenta[
+    label = "POPS\nplacenta RNA-Seq";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+  plasma [
+    label = "POPS\nplasma RNA-Seq";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+  deg_pops [
+    label = "DEG";
+    shape = rect;
+    style = "rounded,filled";
+    fontcolor = white;
+  ];
+  pops[
+    label = "POPS placenta\ntranscriptome";
+    shape = rect;
+    color = black;
+    fontcolor = black;
+  ];
+  quant_pops [
+    label = "Quantification";
+    shape = rect;
+  ];
+
+  placenta-> pops[label="StringTie"];
+  pops-> quant_pops[label="Salmon (index)"];
+  quant_pops-> deg_pops[label="DESeq2+edgeR"];
+
+  plasma -> quant_pops[label="Salmon (SA-mode)"]
+
+  /*
+  {rank=same; gtex chess placenta} 
+  {rank=same; dep best4} */
+}

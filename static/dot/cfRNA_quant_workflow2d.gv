@@ -1,0 +1,65 @@
+digraph G {
+  /*rankdir=LR; */
+  node [fontname = "Handlee", color=black, fontcolor=black];
+  edge [fontname = "Handlee", color=black, fontcolor=black];
+
+  placenta_rna [
+    label = "POPS\nplacenta RNA-Seq";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+
+  plasma_rna [
+    label = "POPS\nplasma RNA-Seq";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+
+  deg_pops [
+    label = "DEG";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+  core_deg[
+    label = "Core DEG";
+    shape = rect;
+  ];
+  subset1 [
+    label = "Best subset";
+    shape = rect;
+    style = "rounded,filled";
+    fontcolor = white;
+  ];
+  pops[
+    label = "POPS placenta\ntranscriptome";
+    shape = rect;
+    color = black;
+    fontcolor = black;
+  ];
+  quant_pops [
+    label = "Quantification";
+    shape = rect;
+  ];
+  check_top1[
+    label = "Top1%\n&\nall methods";
+    shape = diamond;
+  ];
+
+  placenta_rna -> pops[label="StringTie"];
+  plasma_rna -> quant_pops[label="Salmon (SA-mode)"]
+  pops-> quant_pops[label="Salmon (index)"];
+
+  quant_pops-> deg_pops[label="DESeq2"];
+  quant_pops-> deg_pops[label="edgeR"];
+  quant_pops-> deg_pops[label="Logistic\nRegression"];
+
+  deg_pops-> check_top1;
+  check_top1-> core_deg;
+  core_deg-> subset1[label="glParallel"];
+
+  {rank=same; check_top1  core_deg} 
+  {rank=same; subset1 deg_pops} 
+}

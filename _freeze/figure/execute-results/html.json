@@ -1,0 +1,15 @@
+{
+  "hash": "ec32b15ceeef75df05fd26ffb1cc2125",
+  "result": {
+    "engine": "knitr",
+    "markdown": "# Figures\n\nThis chapter demonstrates the `R` and the `dot` codes that make @sec-main-figure and @sec-suppl-figure shown in the paper.\n\n::: {.callout-note title=\"R package dependencies\"}\n\nYou need to install `R` [ggplot2](https://ggplot2.tidyverse.org/) as well as my own publication theme called `theme_Publication` in `_libs`.\n\n::: {.cell}\n\n```{.r .cell-code}\nlibrary(\"ggplot2\")\nsource(\"static/R/_libs/theme_publish.R\")\n```\n:::\n\n:::\n",
+    "supporting": [],
+    "filters": [
+      "rmarkdown/pagebreak.lua"
+    ],
+    "includes": {},
+    "engineDependencies": {},
+    "preserve": {},
+    "postProcess": true
+  }
+}

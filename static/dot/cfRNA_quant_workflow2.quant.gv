@@ -1,0 +1,39 @@
+digraph G {
+  node [fontname = "Handlee", color=black, fontcolor=black];
+  edge [fontname = "Handlee", color=black, fontcolor=black];
+
+  placenta_rna[
+    label = "POPS\nplacenta RNA-Seq";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+
+  plasma_rna [
+    label = "POPS\nplasma RNA-Seq";
+    shape = rect;
+    style = filled;
+    fontcolor = white;
+  ];
+
+  pops[
+    label = "POPS placenta\ntranscriptome";
+    shape = rect;
+    color = black;
+    fontcolor = black;
+  ];
+
+  quant_pops [
+    label = "Quantification";
+    style = "rounded,filled";
+    fillcolor = "darkgoldenrod2"
+    shape = rect;
+    color = black;
+  ];
+
+  placenta_rna-> pops[label="StringTie"];
+  pops-> quant_pops[label="Salmon (index)"];
+  plasma_rna -> quant_pops[label="Salmon (SA-mode)"]
+
+  {rank=same; placenta_rna plasma_rna} 
+}

@@ -1,0 +1,387 @@
+
+## Methods
++ Genes (N=2..7) were selected from the discovery dataset (aka. the 28wk pre-term PE dataset).
++ Based on the following three workflows
+  + WF1: top 1% core DEGs satisfying at least one of the four criteria (e.g. DESeq2, edgeR, AIC and AUC) followed by regularisation regression. 
+  + WF2: top 1% core DEGs satisfying all criteria.
+  + WF3: WF1 + CPM>=LEP
++ Using the genes above, AUC was calculated based on the validation dataset (i.e. term PE dataset)
+
+## The validation samples (term PE dataset)
+```{r samples_meta_term}
+  li.GA.term<-split(dt.colDataTerm, dt.colDataTerm$GA)
+
+  dt.colDataTerm<-dt.colDataAll[Type=="term" & !names %in% c("GS-B-374-UW","GS-B-374-UW-b")] # remove these two samples as both of them flagged as "failed" by illumina (it is a 28wk control sample)
+  xtabs(~Condition+GA, data=dt.colDataTerm[,.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=474 samples
+  #xtabs(~Condition+GA, data=dt.samples[Type=="term",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=475 samples
+
+  if(F){
+    dt.samples[Type=="term"] # n=476
+    dt.samples[Type=="term",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)] # n=475 samples
+    dt.samples[Type=="term",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)][N>1]
+    dt.samples[Type=="term" & grepl("-b$",SampleID)] #
+
+    xtabs(~pn_female+GA, data=dt.samples[Type=="preterm",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=475 samples
+    xtabs(~pn_female+GA, data=dt.samples[Type=="term",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=475 samples
+
+    xtabs(~pn_female+Condition+GA, data=dt.samples[Type=="preterm",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=277 samples
+    xtabs(~pn_female+Condition+GA, data=dt.samples[Type=="term",.N,.(Type,IlluminaID,PI,Batch,pn_female,GA,Condition)]) %>% addmargins # n=475 samples
+  }
+```
+
+```{r prep_term_dds1, eval=F}
+  my.dds.RData<-paste0("RData/dds.term.",my.salmon.index,".RData")
+  if(file.exists(my.dds.RData)){
+    load(my.dds.RData)
+    message("loading dds...")
+  }else{
+    gse.term<-tximeta::tximeta(dt.colDataTerm,skipMeta=T,tx2gene=dt.tx2gene[,.(transcript_id,gene_id)],txOut=F) # gene level (n=25045 vs 25115) ??
+    # set up `dds` at gene-level
+    my.design <- formula(~ Batch + GA + Sex + Condition) 		# isa 'formula'
+    dds.term <- DESeqDataSet(se=gse.term, design=my.design) 
+
+    dds.term$Group<-factor(paste0(dds.term$GA,dds.term$Condition)) # add 'Group'
+    design(dds.term) <- formula(~ Batch + Sex + Group) 		# isa 'formula'
+
+    #
+    dds.term<- DESeq(dds.term, parallel=TRUE) # isa 'DESeqDataSet'
+    save(dds.term,file=my.dds.RData)
+  }
+```
+
+```{r init_res_term1, eval=F}
+  my.dds.RData<-paste0("RData/dds.term.",my.salmon.index,".RData")
+  if(!exists('dds.term')){load(my.dds.RData)} # see above
+
+  # use 15150 genes considered in this study
+  dds.f2.term<-DESeq(dds.term[rownames(dds.f2)], parallel=T)
+
+  my.dl.resLFC.RData<-paste0("RData/dl.resLFC.term.",my.salmon.index,".RData")
+  if(file.exists(my.dl.resLFC.RData)){
+    load(my.dl.resLFC.RData)
+  }else{
+    # apply shink
+    li.resLFC.term<-lapply(names(li.GA.term),function(my.GA){
+      my.res<-results(dds.f2.term, 
+              #alpha=.05, # by default independant filtering at FDR (alpha) 0.1 (10%) 
+              independentFiltering=FALSE,
+              lfcThreshold=log2(minFC), 
+              contrast=c("Group",paste0(my.GA,c("Case","Control"))),
+              parallel=TRUE)  
+      lfcShrink(dds.f2.term, 
+                #contrast=c("Group",paste0(my.GA,c("Case","Control"))), # not necessary for 'ashr'
+                res=my.res, #li.res[[my.GA]],
+                lfcThreshold=log2(minFC), # not applicable for 'asher' 
+                type="ashr",
+                parallel=TRUE)  
+    })
+    names(li.resLFC.term)<-names(li.GA.term)
+
+    dl.resLFC.term<-lapply(li.resLFC.term, function(i)
+      data.table(`gene_id`=rownames(i), as.data.frame(i))[order(pvalue)][,`:=`("BH"=p.adjust(pvalue,"BH"),"BY"=p.adjust(pvalue,"BY"),"bf"=p.adjust(pvalue,"bonferroni"))]
+    )
+    save(dl.resLFC.term, file=my.dl.resLFC.RData)
+    #fwrite(dl.resLFC[["28wk"]], file=paste0("data/DEG.DSeq2.28wk.",my.type,".",my.salmon.index,".csv"))
+  }
+```
+
+```{r init_edger_term1, eval=F}
+  gse2 <-gse.term[rownames(dds.f2.term),]
+  d2<-tximeta::makeDGEList(gse2)
+  d2$samples<-cbind(d2$samples,colData(gse2))
+  d2$samples$group<-factor(paste0(d2$samples$GA,d2$samples$Condition)) # add 'group'
+  d2$samples$GA<-droplevels(d2$samples$GA) # 36wk removed - really? 2023-03-21
+  d2$samples$Batch<-droplevels(d2$samples$Batch) # some batches removed
+
+
+  # TMM normalisation (default). It adds `norm.factors` d2$samples
+  # NB, we have `offsets`, which take precedence over lib.size and norm.factors
+  d2<-calcNormFactors(d2,method="TMM") 
+                                      
+
+  # design
+  # my.design <- model.matrix(~ Batch + Sex + group, data=d2$samples) 		# isa 'matrix'
+  #my.design <- model.matrix(~ 0 + group,  data=d2$samples) 		# isa 'matrix'
+  my.design <- model.matrix(~ 0 + group + Sex + Batch , data=d2$samples) 		# isa 'matrix'
+  (my.contrasts <- makeContrasts(`12wk`=group12wkCase-group12wkControl, 
+                                `20wk`=group20wkCase-group20wkControl, 
+                                `28wk`=group28wkCase-group28wkControl, 
+                                levels=my.design)
+  )
+
+  # dispersion
+	#dp2 = estimateDisp(d2, design=my.design, verbose=T)
+	dp2 = estimateGLMCommonDisp(d2, design=my.design, verbose=T) 
+	dp2 = estimateGLMTrendedDisp(dp2, design=my.design, verbose=T)
+	dp2 = estimateGLMTagwiseDisp(dp2, design=my.design)
+
+	#f = glmFit(dp2, design=my.design) # 
+	f = glmQLFit(dp2, design=my.design) # QL(Quasi-like) pipeline
+  colnames(f)
+  f$coefficients %>% head
+
+  # get the edgeR results
+  li.res.edgeR.term<-lapply(names(li.GA.term), function(i){
+    #te <- glmLRT(f, contrast=my.contrasts[,i]) # LR test
+    #te <- glmQLFTest(f, contrast=my.contrasts[,i]) # QL F-test
+    #te <- glmTreat(f, contrast=my.contrasts[,i], lfc=log2(1.2))
+    te <- glmTreat(f, contrast=my.contrasts[,i], lfc=log2(minFC))
+	  topTags(te, n=nrow(te))    # default sort by pvalue
+  })
+  names(li.res.edgeR.term) <-names(li.GA.term)
+
+  dl.res.edgeR.term<-lapply(li.res.edgeR.term, function(i)
+    data.table(`gene_id`=rownames(i),i$table)[order(PValue)][,`:=`("BH"=p.adjust(PValue,"BH"),"BY"=p.adjust(PValue,"BY"),"bf"=p.adjust(PValue,"bonferroni"))]
+  )
+  lapply(dl.res.edgeR.term, function(i) i[FDR<0.05] %>% nrow)
+
+  dl.res.edgeR.term[["28wk"]][FDR<0.05]
+  dl.res.edgeR.term[["36wk"]][FDR<0.05]
+
+  my.dl.res.edgeR.RData<-paste0("RData/dl.res.edgeR.term.",my.salmon.index,".RData")
+  save(dl.res.edgeR.term, file=my.dl.res.edgeR.RData)
+  #fwrite(dl.res.edgeR[["28wk"]], file=paste0("data/DEG.edgeR.28wk.",my.type,".",my.salmon.index,".csv"))
+```
+
+```{r dt-cnt-cpm-term2, eval=F}
+  # based on genes from dds.f2.term
+  # CPM based on edgeR TMM  (NB, d isa "DGEList")
+  my.cnt.RData<-paste0("RData/dt.count2.term.",my.salmon.index,".RData")
+  if(file.exists(my.cnt.RData)){
+    load(my.cnt.RData)
+  }else{
+    dt.count<-merge(
+      data.table(`geneName`=rownames(dds.f2.term),counts(dds.f2.term,normalized=T)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="Count"),
+      dt.samples[Type=="term",.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+    )
+
+    # CPM based on DESeq2 `fpm`
+    dt.cpm<-merge(
+      data.table(`geneName`=rownames(dds.f2.term),fpm(dds.f2.term)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="CPM"),
+      dt.samples[Type=="term",.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+    )
+
+    dt.tpm<-merge(
+      data.table(`geneName`=rownames(dds.f2.term), assays(dds.f2.term)[["abundance"]]) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="TPM"),
+      dt.samples[Type=="term",.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+    )
+
+    # CPM based on edgeR TMM  (NB, d isa "DGEList")
+    dt.cpm2<-merge(
+      data.table(`geneName`=rownames(d2),cpm(d2)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="CPM"),
+      dt.samples[Type=="term",.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+      )
+
+    dt.logcpm2<-merge(
+      data.table(`geneName`=rownames(d2),cpm(d2,log=T)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="logCPM"),
+      dt.samples[Type=="term",.(SampleID,GA,Condition,Group=paste(GA,Condition,sep="-"))]
+      )
+
+    save(dt.count, dt.cpm, dt.tpm, dt.cpm2, dt.logcpm2, file=my.cnt.RData)
+  }
+```
+
+```{r cpm_zscore_term1, eval=F}
+  my.cpmZ.RData<-paste0("RData/dt.cpmZ.term.",my.salmon.index,".RData")
+  if(file.exists(my.cpmZ.RData)){
+    load(my.cpmZ.RData)
+  }else{
+    dt.cpmZ.term=merge(dt.logcpm2,
+                  dt.logcpm2[Condition=="Control",.(Mean=mean(logCPM),SD=sd(logCPM)),.(GA,geneName)]# [,.N,GA]
+          ,by=c("GA","geneName")
+          )[,.(Group,GA,Condition,SampleID,geneName,logCPM,logCPMZ=(logCPM-Mean)/SD)]
+    save(dt.cpmZ.term,file=my.cpmZ.RData)
+  }
+```
+
+```{r prep_val1}
+  # get the following protein models
+  dt.bestModel<-rbind(
+    # WF1: n=60 DEG followed by REG 
+    data.table(WF="WF1",fread("data/dt.best10.PE.28wk.deg-reg.DEG.preterm.POPS-2022.GRCh38.88.csv")),
+  # WF2: n=17 core DEG
+    data.table(WF="WF2",fread("data/dt.best10.PE.28wk.core.DEG.preterm.POPS-2022.GRCh38.88.csv")),
+  # WF3: n=52 DEG (>LEP) followed by REG
+    data.table(WF="WF3",fread("data/dt.best10.PE.28wk.deg-reg-more-than-LEP.DEG.preterm.POPS-2022.GRCh38.88.csv"))
+    )
+
+  #dt.bestModel[N_P==4]
+
+  all.predictors<-strsplit(dt.bestModel[["Best proteins"]],",") %>% unlist %>% unique # n=34
+  #all.predictors<-strsplit(dt.bestModel[N_P>1 & N_P<8][["Best proteins"]],",") %>% unlist %>% unique # n=32
+
+  # to store logCPMZ matrix
+  li.logCPMZ<-list()
+
+  # preterm
+  load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData")
+  li.foo<-lapply(names(li.GA)[1:3], function(my.GA){
+    this.mat<-dt.cpmZ[GA==my.GA & geneName %in% all.predictors,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") # %>% as.data.frame
+      }
+  )
+  names(li.foo)<-names(li.GA)[1:3]
+  #lapply(li.foo, dim)
+  li.logCPMZ[["preterm"]]<-li.foo
+
+  #fread("data/top1pctZ.60.deg-reg.preterm.POPS-2022.GRCh38.88.csv")
+  #fread("data/top1pctZ.17.core.preterm.POPS-2022.GRCh38.88.csv")
+  #fread("data/top1pctZ.52.deg-reg-more-than-LEP.preterm.POPS-2022.GRCh38.88.csv")
+
+  # term data
+  load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData")
+  li.bar<-lapply(names(li.GA.term), function(my.GA){
+    this.mat<-dt.cpmZ.term[GA==my.GA & geneName %in% all.predictors,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") # %>% as.data.frame
+      }
+  )
+  names(li.bar)<-names(li.GA.term)
+  #lapply(li.bar, dim)
+  li.logCPMZ[["term"]]<-li.bar
+
+  #lapply(li.logCPMZ, function(i) lapply(i, dim))
+```
+
+```{r prep_val2}
+##
+## Method 1: genes and the model (glm) from the preterm dataset, then validate the model using term datataset
+##
+my.model.RData<-paste0("RData/li.model.",my.type,".",my.salmon.index,".RData")
+if(file.exists(my.model.RData)){
+  load(my.model.RData)
+}else{
+  # to store models
+  li.model<-list()
+  for(my.N in 2:7){
+    my.modelName=paste0("N",my.N)
+
+    # for each workflow 
+    li.model[[my.modelName]]<-lapply(dt.bestModel[N_P==my.N][["WF"]], function(my.WF){
+        my.subsets<-strsplit(dt.bestModel[N_P==my.N & WF==my.WF][["Best proteins"]],",")[[1]] # predictor genes
+        df.mat=data.frame(li.logCPMZ[["preterm"]][["28wk"]][,c("y",my.subsets)]) # logCPMZ of selected genes (NB, "y" is the first column) 
+        my.model<-glm(y~. , data = df.mat, family = "binomial") # fit the model based on the selected proteins
+
+        ###########################
+        # set up the term dataset #
+        ###########################
+        li.foo<-lapply(names(li.GA.term), function(my.GA){
+          df.mat.term=data.frame(li.logCPMZ[["term"]][[my.GA]][,c("y",my.subsets)]) # logCPMZ of selected genes
+
+          # now, predict the outcome of term data using the model obtained from preterm data
+          df.mat.term$prob<-predict.glm(my.model, newdata=df.mat.term, type="response") 
+          my.roc <- pROC::roc(y ~ prob, data = df.mat.term, quiet=T, ci=TRUE)
+          
+          # return the following table
+          data.table(`N`=my.N,
+                    `WF`=my.WF,
+                    `Genes`=dt.bestModel[N_P==my.N & WF==my.WF][["Best proteins"]],
+                    `GA`=my.GA,
+                    `AUC`=my.roc$ci[2], 
+                    `AUC_lo`=my.roc$ci[1], 
+                    `AUC_hi`=my.roc$ci[3])
+        }) # end of lapply li.GA
+        rbindlist(li.foo)
+    }) # end of lapply WF
+    names(li.model[[my.modelName]])<-dt.bestModel[N_P==my.N]$WF
+  }
+  save(li.model, file=my.model.RData)
+}
+
+##
+## Method 2: genes from the 28wk preterm dataset, then setup the model (glm) and validate the model using term datataset
+##
+my.model2.RData<-paste0("RData/li.model2.",my.type,".",my.salmon.index,".RData")
+if(file.exists(my.model2.RData)){
+  load(my.model2.RData)
+}else{
+  li.model2<-list()
+  for(my.N in 2:7){
+    my.modelName=paste0("N",my.N)
+
+    # for each workflow 
+    li.model2[[my.modelName]]<-lapply(dt.bestModel[N_P==my.N][["WF"]], function(my.WF){
+        my.subsets<-strsplit(dt.bestModel[N_P==my.N & WF==my.WF][["Best proteins"]],",")[[1]] # predictor genes
+        #df.mat=data.frame(li.logCPMZ[["preterm"]][["28wk"]][,c("y",my.subsets)]) # logCPMZ of selected genes (NB, "y" is the first column) 
+        #my.model<-glm(y~. , data = df.mat, family = "binomial") # fit the model based on the selected proteins
+
+        ###########################
+        # set up the term dataset #
+        ###########################
+        li.foo<-lapply(names(li.GA.term), function(my.GA){
+          df.mat.term=data.frame(li.logCPMZ[["term"]][[my.GA]][,c("y",my.subsets)]) # logCPMZ of selected genes
+
+          # now, predict the outcome of term data using the genes of the preterm model
+          my.model.term<-glm(y~. , data = df.mat.term, family = "binomial")
+          df.mat.term2<-df.mat.term
+          df.mat.term2$prob<-fitted(my.model.term)
+          my.roc <- pROC::roc(y ~ prob, data = df.mat.term2, quiet=T, ci=TRUE)
+
+          # return the following table
+          data.table(`N`=my.N,
+                    `WF`=my.WF,
+                    `Genes`=dt.bestModel[N_P==my.N & WF==my.WF][["Best proteins"]],
+                    `GA`=my.GA,
+                    `AIC`=my.model.term$aic,
+                    `BIC`=BIC(my.model.term),
+                    `AUC`=my.roc$ci[2]*100, 
+                    `AUC_lo`=my.roc$ci[1]*100, 
+                    `AUC_hi`=my.roc$ci[3]*100,
+                    `Boot`=auc.adjust(data=df.mat.term, fit=my.model.term, B=1000)*100,  # optimism-adjusted AUC scores. the outcome should be the first column
+                    `KFCV`=get_KFCV(x=df.mat.term, mc.cores=20), 
+                    `LPOCV`=get_LPOCV(x=df.mat.term) 
+                    )
+        }) # end of lapply li.GA
+        rbindlist(li.foo)
+    }) # end of lapply WF
+    names(li.model2[[my.modelName]])<-dt.bestModel[N_P==my.N]$WF
+  }
+  save(li.model2, file=my.model2.RData)
+}
+```
+
+## Validation results
+```{r res_val1, fig.cap="AUC of the validation datasets"}
+  ##
+  #foo<-rbindlist(li.model2[[my.modelName]])[order(GA)]
+  #split(foo, foo$GA)
+  dt.result2<-rbind(
+  rbindlist(li.model2[[1]]),
+  rbindlist(li.model2[[2]]),
+  rbindlist(li.model2[[3]]),
+  rbindlist(li.model2[[4]]),
+  rbindlist(li.model2[[5]]),
+  rbindlist(li.model2[[6]])
+  )[order(-AUC)]
+
+  p.res2<-ggplot(dt.result2, aes(GA, AUC, col=WF)) +
+    geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi),position=position_dodge(width=0.5)) +
+    facet_wrap(~N) +
+    theme_Publication()
+  print(p.res2)
+
+  if(F){
+    my.modelName=paste0("N",my.N)
+    foo<-rbindlist(li.model[[my.modelName]])[order(GA)]
+    split(foo, foo$GA)
+
+    dt.result<-rbind(
+    rbindlist(li.model[[1]]),
+    rbindlist(li.model[[2]]),
+    rbindlist(li.model[[3]]),
+    rbindlist(li.model[[4]]),
+    rbindlist(li.model[[5]]),
+    rbindlist(li.model[[6]])
+    )[order(AUC)]
+
+    p.res1<-ggplot(dt.result, aes(GA, AUC, col=WF)) +
+      geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi),position=position_dodge(width=0.5)) +
+      facet_wrap(~N) +
+      theme_Publication()
+  }
+```
+
+## Best 10 results 
+```{r res_val2}
+  #dt.result2[1:10] %>%
+  dt.result2[1:10,.(N,WF,Genes,GA,AUC,Boot,KFCV,LPOCV)] %>%
+    kbl(booktabs=T,caption="Best 10 results",digits=4) %>%
+    kable_styling(latex_options = c("striped","scale_down"))
+```

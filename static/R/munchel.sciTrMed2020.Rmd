@@ -1,0 +1,237 @@
+
+```{r munchel_dds_init}
+  my.dds.RData<-paste0("RData/dds.munchel.RData")
+  if(file.exists(my.dds.RData)){
+    load(my.dds.RData)
+    message("loading dds...")
+  }else{
+    # import
+    dt.foo<-readxl::read_excel("~/data/Munchel/SciTrMed.2020/aaz0131_data_file_s2.xlsx",skip=3) %>% as.data.table
+    dt.foo[,-c("Chr","Start","End","Strand")][1:5,1:5]
+
+    # sample info with GA of sample collection
+    dt.munchel.meta<-data.table(
+                              names=dt.foo[is.na(Geneid),-c("Geneid","Chr","Start","End","Strand","Length")] %>% colnames %>% stringr::str_replace("\\.\\.\\.",""),
+                              GA=dt.foo[is.na(Geneid),-c("Geneid","Chr","Start","End","Strand","Length")] %>% unlist 
+                              )
+    dt.munchel.meta[,Condition:=ifelse(grepl("PE",names),"Case","Control")]
+    dt.munchel.meta$GA %>% summary
+    dt.munchel.meta[,.N,Condition]
+    dt.munchel.meta[Condition=="Control"]$GA %>% summary
+    dt.munchel.meta[Condition=="Case"]$GA %>% summary
+    df.munchel.meta<-data.frame(dt.munchel.meta, row.names=dt.munchel.meta$names)
+
+    # cnt 
+    dt.munchel.cnt<-dt.foo[!is.na(Geneid),-c("Chr","Start","End","Strand","Length")]
+    dt.munchel.cnt %>% dim # 26708 genes x 114 samples
+    dt.munchel.cnt[1:5,1:5]
+    colnames(dt.munchel.cnt)<-c("gene_name",dt.munchel.meta$names) # update the sample names
+    dt.munchel.cnt[1:5,1:5]
+    dt.munchel.cnt[,.N,gene_name][N>1][order(-N)] # 0 duplicated gene names 
+
+    dt.munchel.cnt[grepl("_dup",gene_name)][,.N,gene_name] # 1355 such gene names
+    dt.munchel.cnt[grepl("_dup",gene_name)][1:5,1:5]
+
+    dt.munchel.cnt[,gene_name:=tstrsplit(gene_name,"_dup",fixed=T,keep=1L)]
+    dt.munchel.cnt[grepl("_dup",gene_name)]
+    dt.munchel.cnt[,.N,gene_name][N>1][order(-N)] # 491 duplicated gene names
+    dt.munchel.cnt[gene_name=="REXO1L2P",1:5]
+    dt.munchel.cnt[,.N,gene_name %in% rownames(dds.f2)] # genes only in the dds.f2 (15150 genes)
+                                                        # TRUE 13555; FALSE 13153
+    rownames(dds.f2) %in% dt.munchel.cnt$gene_name %>% table # from 15150 genesin dds.f2, 13469 genes in Munchel; 1681 genes not in Munchel
+    dds.f2[!rownames(dds.f2) %in% dt.munchel.cnt$gene_name] %>% names
+
+
+    dt.munchel.cnt2<-  (dt.munchel.cnt[gene_name %in% rownames(dds.f2)]  %>% melt.data.table(id.vars=c("gene_name"), variable.name="SampleID",value.name="Cnt"))[,.(Cnt=sum(Cnt)),.(SampleID,gene_name)] %>% dcast.data.table(gene_name ~ SampleID, value.var="Cnt")
+    dim(dt.munchel.cnt2) # 13469 genes x 114 samples
+    dt.munchel.cnt2[,.N,gene_name][N>1][order(-N)] # no duplicated genes
+    all.equal(colnames(dt.munchel.cnt),colnames(dt.munchel.cnt2))
+
+    mat.munchel.cnt2<-dt.munchel.cnt2 %>% as.matrix(rownames="gene_name")
+    dim(mat.munchel.cnt2) # 13469 x 113
+    mat.munchel.cnt2[1:5,1:5]
+
+    all.equal(colnames(mat.munchel.cnt2), rownames(df.munchel.meta))
+
+    dds.munchel<-DESeqDataSetFromMatrix(mat.munchel.cnt2, df.munchel.meta, design=formula(~Condition) )
+
+    dds.munchel<- DESeq(dds.munchel, parallel=TRUE) # isa 'DESeqDataSet'
+    save(dt.munchel.meta,dds.munchel,file=my.dds.RData)
+  }
+```
+
+```{r munchel_init_edger}
+  my.cpmZ.RData<-paste0("RData/dt.cpmZ.munchel.RData")
+  if(file.exists(my.cpmZ.RData)){
+    load(my.cpmZ.RData)
+  }else{
+    load("RData/dds.munchel.RData")
+    dds.munchel # samples from Discovery & Validation1
+
+    d.munchel = DEFormats::as.DGEList(dds.munchel)
+    d.munchel<-calcNormFactors(d.munchel,method="TMM") 
+
+    dt.logcpm2<-merge(
+        data.table(`geneName`=rownames(d.munchel),cpm(d.munchel,log=T)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="logCPM"),
+        df.munchel.meta,by.x="SampleID",by.y="names"
+        )
+
+    dt.cpmZ.munchel=merge(dt.logcpm2,
+                  dt.logcpm2[Condition=="Control",.(Mean=mean(logCPM),SD=sd(logCPM)),.(geneName)] #[,.N,.(Cohort,GA)]
+          ,by=c("geneName")
+          )[,.(Condition,SampleID,geneName,logCPM,logCPMZ=(logCPM-Mean)/SD)]
+    save(dt.cpmZ.munchel,file=my.cpmZ.RData)
+  }
+```
+
+```{r munchel_logit_pappa2_lep_setup1}
+  my.RData<-paste0("RData/dt.top.predictor.munchel.RData")
+  if(file.exists(my.RData)){
+    load(my.RData)
+  }else{
+  # PAPPA2 + LEP
+    #my.targets<-c("HBQ1","LEP","PAPPA2","PAPPA2,LEP")
+    #my.targets<-c("HBQ1,PAPPA2","ABAT,DMTN,HBQ1,LINC01521,PAPPA2")
+    my.targets<-c("HBQ1","LEP","PAPPA2","PAPPA2,LEP","HBQ1,PAPPA2","ABAT,DMTN,HBQ1,LINC01521,PAPPA2")
+
+    this.mat<-dt.cpmZ.munchel[,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Control",0,1))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") #%>% as.data.frame
+    this.mat %>% dim # 113 x 13470
+    this.mat[,c("y","LEP")]
+
+    dt.top.predictor.munchel<-lapply(my.targets, function(i) { # each set of predictors 
+          my.subsets<-strsplit(i,",")[[1]] # predictor genes
+            this.samples<-dt.cpmZ.munchel[,.N,SampleID]$SampleID
+            df.mat<-this.mat[this.samples,c("y",my.subsets)] %>% as.data.frame
+
+            # now, predict the outcome of term data using the genes of the corresponding dataset
+            my.model<-glm(y~. , data = df.mat, family = "binomial")
+
+            foo1<-as.data.frame(coef(summary(my.model)))
+            foo2<-as.data.frame(exp(cbind(coef(my.model), confint(my.model)))) # Odds Ratio & CI (95%)
+            foo3<-cbind(i,cbind(foo1,foo2)[2,]) %>% data.table 
+            colnames(foo3)<-c("predictor","log_odds","se","zval","pval","OR","OR_lo","OR_hi")
+
+            df.mat2<-df.mat
+            df.mat2$prob<-fitted(my.model)
+            my.roc <- pROC::roc(y ~ prob, data = df.mat2, quiet=T, ci=TRUE)
+
+            # return the following table
+            cbind(
+              foo3,
+              data.table(
+                        `AIC`=my.model$aic,
+                        `BIC`=BIC(my.model),
+                        `AUC`=my.roc$ci[2]*100, 
+                        `AUC_lo`=my.roc$ci[1]*100, 
+                        `AUC_hi`=my.roc$ci[3]*100,
+                        #`Boot`=auc.adjust(data=df.mat, fit=my.model, B=1000)*100,  # optimism-adjusted AUC scores. the outcome should be the first column # failed with some errors
+                        `KFCV`=get_KFCV(x=df.mat, mc.cores=20), 
+                        `LPOCV`=get_LPOCV(x=df.mat)
+                        )
+            ) # end of cbind
+        }) %>% rbindlist # end of lapply my.targets
+    save(dt.top.predictor.munchel, file=my.RData)
+  }
+  #dt.top.predictor.munchel[,.(predictor,dataset,GA,AUC,AUC_lo,AUC_hi,LPOCV)]
+```
+
+## No. of samples
+```{r munchel_sample_meta1}
+  xtabs(~Condition,data=dt.munchel.meta) %>% addmargins
+```
+
+## GA of samples
+```{r munchel_sample_meta2}
+if(F){
+  dt.munchel.meta$GA %>% summary
+  hist(dt.munchel.meta$GA)
+  boxplot(dt.munchel.meta$GA)
+  ggplot(o)
+}
+
+my_variable=dt.munchel.meta$GA 
+  # Layout to split the screen
+layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
+# Draw the boxplot and the histogram
+par(mar=c(0, 3.1, 1.1, 2.1))
+boxplot(my_variable , horizontal=TRUE , ylim=c(22,34), xaxt="n" , col=rgb(0.8,0.8,0,0.5) , frame=F)
+par(mar=c(4, 3.1, 1.1, 2.1))
+hist(my_variable , breaks=40 , col=rgb(0.2,0.8,0.5,0.5) , border=F , main="" , xlab="GA", xlim=c(22,34))
+
+```
+
+## AUC & LPOCV of selected top predictors
+```{r munchel_logit_pappa2_lep_plot1, fig.cap="AUC & LPOCV of Munchel-2020 dataset"}
+  dt.foo<-dt.top.predictor.munchel[,.(predictor,AUC,AUC_lo,AUC_hi)]
+  dt.foo[predictor=="ABAT,DMTN,HBQ1,LINC01521,PAPPA2",predictor:="WF2-N5"]
+  dt.foo<-dt.foo[!grepl("HBQ1",predictor)]
+
+  p.auc<-ggplot(dt.foo, aes(predictor,AUC,col=predictor)) +
+    geom_pointrange(aes(ymin=AUC_lo,ymax=AUC_hi),position=position_dodge(width=.5)) +
+    #facet_grid(dataset~GA) +
+    scale_y_continuous(expand = c(0, 0), breaks=c(0,20,40,60,80,100), limit=c(0,100)) +
+    ggsci::scale_color_jco() +
+    theme_Publication() +
+    theme(axis.text.x = element_text(angle = 270, hjust=1), 
+          legend.position="none",
+          panel.border = element_rect(colour = "black"))
+
+  dt.bar<-dt.top.predictor.munchel[,.(predictor,LPOCV)]
+  dt.bar[predictor=="ABAT,DMTN,HBQ1,LINC01521,PAPPA2",predictor:="WF2-N5"]
+  dt.bar<-dt.bar[!grepl("HBQ1",predictor)]
+
+  p.lpocv<-ggplot(dt.bar, aes(predictor,LPOCV,col=predictor)) +
+    geom_point(size=3, position=position_dodge(width=.5)) +
+    geom_linerange(aes(ymin=0,ymax=LPOCV),position=position_dodge(width=.5)) +
+    #facet_grid(dataset~GA) +
+    ggsci::scale_color_jco() +
+    scale_y_continuous(expand = c(0, 0), breaks=c(0,20,40,60,80,100), limit=c(0,100)) +
+    theme_Publication() +
+    theme(axis.text.x = element_text(angle = 270, hjust=1), 
+          legend.position="none",
+          panel.border = element_rect(colour = "black"))
+
+  cowplot::plot_grid(p.auc, p.lpocv)
+```
+
+```{r munchel_abudance_lep_pappa2, fig.cap="logCPM of LEP & PAPPA2", eval=F}
+## Abundances
+
+  # CPM
+    ggplot(dt.cpmZ.munchel[geneName %in% c("LEP","PAPPA2")], aes(geneName, logCPM, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge()) +
+    ggsci::scale_color_d3() +
+    #facet_grid(~geneName) +
+    theme_Publication() #+ theme(legend.position="none")
+
+  # CPMZ
+    ggplot(dt.cpmZ.munchel[geneName %in% c("LEP","PAPPA2")], aes(geneName, logCPMZ, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge()) +
+    ggsci::scale_color_d3() +
+    #facet_grid(~geneName) +
+    theme_Publication() #+ theme(legend.position="none")
+
+  # Count
+    dt.count.munchel<-merge(
+        data.table(`geneName`=rownames(dds.munchel),counts(dds.munchel,normalized=T)) %>% melt.data.table(id.vars=c("geneName"),variable.name="SampleID",value.name="Count"),
+        df.munchel.meta,by.x="SampleID",by.y="names"
+        )
+
+    ggplot(dt.count.munchel[geneName %in% c("LEP","PAPPA2","HBQ1")], aes(geneName, log2(Count+1), col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge()) +
+    ggsci::scale_color_d3() +
+    #facet_grid(~geneName,nrow=2) +
+    theme_Publication()
+
+  # CPMZ - preterm
+    ggplot(dt.cpmZ[geneName %in% c("LEP","PAPPA2")], aes(GA, logCPMZ, col=Condition)) +
+    geom_boxplot(outlier.shape=NA,width=.7,size=.5) +
+    geom_point(pch = 21, size=2.4, position = position_jitterdodge()) +
+    ggsci::scale_color_d3() +
+    facet_grid(~geneName) +
+    theme_Publication() #+ theme(legend.position="none")
+
+```

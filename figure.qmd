@@ -1,0 +1,14 @@
+# Figures
+
+This chapter demonstrates the `R` and the `dot` codes that make @sec-main-figure and @sec-suppl-figure shown in the paper.
+
+::: {.callout-note title="R package dependencies"}
+
+You need to install `R` [ggplot2](https://ggplot2.tidyverse.org/) as well as my own publication theme called `theme_Publication` in `_libs`.
+```{r fig-init}
+#| label: fig-init
+#| eval: false
+library("ggplot2")
+source("static/R/_libs/theme_publish.R")
+```
+:::
