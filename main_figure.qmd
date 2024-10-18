@@ -477,7 +477,7 @@ This figure was made using the [Biorender](http://www.biorender.com), except som
 ```
 
 ## Figure 5 {#sec-fig5}
-![Figure 5 in the paper](static/figure/cfRNA.Fig5.png){$#fig-fig5}
+![Figure 5 in the paper](static/figure/cfRNA.Fig5.png){#fig-fig5}
 
 ```{r}
 #| label: fig-5
