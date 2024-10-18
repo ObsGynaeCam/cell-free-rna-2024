@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.4.551">
+<meta name="generator" content="quarto-1.5.57">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>cfRNA POP Study - 2&nbsp; RNA-seq data processing</title>
+<title>2&nbsp; RNA-seq data processing – cfRNA POP Study</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -33,7 +33,7 @@ div.sourceCode { overflow: auto; }
 }
 @media print {
 pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
 }
 pre.numberSource code
   { counter-reset: source-line 0; }
@@ -114,13 +114,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <header id="quarto-header" class="headroom fixed-top">
   <nav class="quarto-secondary-nav">
     <div class="container-fluid d-flex">
-      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
         <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./sample.html">Methods</a></li><li class="breadcrumb-item"><a href="./quant.html"><span class="chapter-number">2</span>&nbsp; <span class="chapter-title">RNA-seq data processing</span></a></li></ol></nav>
-        <a class="flex-grow-1" role="button" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
-      <button type="button" class="btn quarto-search-button" aria-label="" onclick="window.quartoOpenSearch();">
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
         <i class="bi bi-search"></i>
       </button>
     </div>
@@ -154,9 +154,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
  <span class="menu-text">Methods</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
@@ -183,9 +183,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
  <span class="menu-text">Supplementary Text</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
@@ -208,7 +208,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="sidebar-item-container"> 
             <a href="./figure.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Figures</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
@@ -280,7 +280,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>For an RNA-seq quantification method applied in this study, we chose the most reliable approach based on the performance of predicting fetal sex by measuring the extent of chromosome Y encoded transcripts (see <a href="SI_select_quant_method.html" class="quarto-xref"><span>Chapter 4</span></a> for detail). Based on this benchmark result, we chose <a href="https://combine-lab.github.io/salmon/"><code>Salmon</code></a> (v1.5.2) in mapping-mode to process our RNA-seq datasets.</p>
 <section id="sec-mtd-salmon-index" class="level3" data-number="2.1.1">
 <h3 data-number="2.1.1" class="anchored" data-anchor-id="sec-mtd-salmon-index"><span class="header-section-number">2.1.1</span> Salmon index</h3>
-<div id="lst-salmon-index" class="bash listing quarto-float" data-filename="static/shell/salmon.decoy.sh">
+<div id="lst-salmon-index" class="bash listing quarto-float quarto-figure quarto-figure-left anchored" data-filename="static/shell/salmon.decoy.sh">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-salmon-index-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.1: A pseudo-code to run `salmon index`
@@ -304,7 +304,7 @@ Listing&nbsp;2.1: A pseudo-code to run `salmon index`
 </section>
 <section id="sec-mtd-salmon-quant" class="level3" data-number="2.1.2">
 <h3 data-number="2.1.2" class="anchored" data-anchor-id="sec-mtd-salmon-quant"><span class="header-section-number">2.1.2</span> Salmon quant</h3>
-<div id="lst-salmon-quant" class="bash listing quarto-float" data-filename="static/shell/salmon-quant.sh">
+<div id="lst-salmon-quant" class="bash listing quarto-float quarto-figure quarto-figure-left anchored" data-filename="static/shell/salmon-quant.sh">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-salmon-quant-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.2: A pseudo-code to run `salmon quant` in mapping mode
@@ -336,7 +336,7 @@ Listing&nbsp;2.2: A pseudo-code to run `salmon quant` in mapping mode
 <h2 data-number="2.2" class="anchored" data-anchor-id="sec-mtd-deg"><span class="header-section-number">2.2</span> Differentially expressed gene analysis</h2>
 <p>The differentially expressed gene analysis was conducted for each gestational epoch (12wk, 20wk, 28wk, and 36wk) separately, except for the 36wkGA gestation samples of the pre-term dataset which has only one PE case.</p>
 <p>Firstly, the following parameters were defined:</p>
-<div id="lst-set-config" class="r listing quarto-float" data-filename="static/R/config/cfRNA-2024.R">
+<div id="lst-set-config" class="r listing quarto-float quarto-figure quarto-figure-left anchored" data-filename="static/R/config/cfRNA-2024.R">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-set-config-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.3: Set the parameters
@@ -366,7 +366,7 @@ Listing&nbsp;2.3: Set the parameters
 </div>
 <p>The transcript-level read count matrices (e.g.&nbsp;quant.sf files) were imported using <a href="https://bioconductor.org/packages/release/bioc/html/tximeta.html"><code>tximeta</code></a> (v1.8.5) Bioconductor package and merged at the gene-level.</p>
 <div class="cell">
-<div id="lst-prep-quant-sf" class="r cell-code listing quarto-float" data-code-summary="Code to set the `Salmon` quant files of the pre-term dataset (i.e. Discovery dataset)">
+<div id="lst-prep-quant-sf" class="r cell-code listing quarto-float quarto-figure quarto-figure-left anchored" data-code-summary="Code to set the `Salmon` quant files of the pre-term dataset (i.e. Discovery dataset)">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-prep-quant-sf-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.4: Code to set the <code>Salmon</code> quant files of the pre-term dataset (i.e.&nbsp;Discovery dataset)
@@ -389,7 +389,7 @@ Listing&nbsp;2.4: Code to set the <code>Salmon</code> quant files of the pre-ter
 </div>
 </div>
 <div class="cell">
-<div id="lst-prep-dds" class="r cell-code listing quarto-float" data-code-summary="Code to make `dds` (DESeq Data Set) object">
+<div id="lst-prep-dds" class="r cell-code listing quarto-float quarto-figure quarto-figure-left anchored" data-code-summary="Code to make `dds` (DESeq Data Set) object">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-prep-dds-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.5: Code to make <code>dds</code> (DESeq Data Set) object
@@ -422,7 +422,7 @@ Listing&nbsp;2.5: Code to make <code>dds</code> (DESeq Data Set) object
 <h3 data-number="2.2.1" class="anchored" data-anchor-id="sec-mtd-deg-deseq2"><span class="header-section-number">2.2.1</span> <code>DESeq2</code></h3>
 <p>We only considered genes found in ≥10% of samples (i.e.&nbsp;≥ 23) having ≥10 reads, and discarded genes detected as dispersion outliers by <a href="https://bioconductor.org/packages/release/bioc/html/DESeq2.html"><code>DESeq2</code></a> (v1.30.0).</p>
 <div class="cell">
-<div id="lst-set-dds" class="r cell-code listing quarto-float" data-code-summary="Code to set up `dds` object">
+<div id="lst-set-dds" class="r cell-code listing quarto-float quarto-figure quarto-figure-left anchored" data-code-summary="Code to set up `dds` object">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-set-dds-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.6: Code to set up <code>dds</code> object
@@ -438,7 +438,7 @@ Listing&nbsp;2.6: Code to set up <code>dds</code> object
 </div>
 <p>A total of 15,150 genes and 221 samples were used to find differentially expressed genes by adjusting the batch number, the fetal sex, and the gestion of the samples in the design matrix of DESeq2. The p-values were calculated from the null hypothesis that the fold changes were less than or equal to 20% (i.e.&nbsp;lfcThreshold=log2(1.2)) in case and control groups.</p>
 <div class="cell">
-<div id="lst-set-deg" class="r cell-code listing quarto-float" data-code-summary="Code to find DEGs by DESeq">
+<div id="lst-set-deg" class="r cell-code listing quarto-float quarto-figure quarto-figure-left anchored" data-code-summary="Code to find DEGs by DESeq">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-set-deg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.7: Code to find DEGs by DESeq
@@ -481,7 +481,7 @@ Listing&nbsp;2.7: Code to find DEGs by DESeq
 <h3 data-number="2.2.2" class="anchored" data-anchor-id="sec-mtd-deg-edger"><span class="header-section-number">2.2.2</span> <code>edgeR</code></h3>
 <p>For <a href="https://bioconductor.org/packages/release/bioc/html/edgeR.html">edgeR</a> (v3.32.1) analysis, we used <code>makeDGEList</code> function of <code>tximeta</code> Bioconductor package to convert the data object of the 15,150 genes across the 221 samples as mentioned above. The gene-level count matrix was normalised by using <code>calcNormFactors</code> function of <code>edgeR</code> with <code>TMM</code> method (trimmed mean of M values) and a quasi-likelihood negative binomial generalised log-linear model (i.e.&nbsp;<code>glmQLFit</code>) was applied to account for the batch number, the fetal sex and the gestation information in the design matrix of edgeR. For a statistical test, we used <code>glmTreat</code> of edgeR with at least 20% fold-change (i.e.&nbsp;lfc=log2(1.2)).</p>
 <div class="cell">
-<div id="lst-set-edger" class="r cell-code listing quarto-float" data-code-summary="Code to find DEGs by `edgeR`">
+<div id="lst-set-edger" class="r cell-code listing quarto-float quarto-figure quarto-figure-left anchored" data-code-summary="Code to find DEGs by `edgeR`">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-set-edger-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.8: Code to find DEGs by <code>edgeR</code>
@@ -554,7 +554,7 @@ Listing&nbsp;2.8: Code to find DEGs by <code>edgeR</code>
 <h3 data-number="2.2.3" class="anchored" data-anchor-id="sec-zscore-mat"><span class="header-section-number">2.2.3</span> The z-score matrix</h3>
 <p>The gene-level count matrix was converted as the unit of CPM (Count Per Million), in log2-scale, via the “cpm” function of edgeR and it was further transformed into a matrix of the z-score using the mean and standard deviation of logCPM from the control samples of each corresponding gestational age group.</p>
 <div class="cell">
-<div id="lst-cnt-cpm" class="r cell-code listing quarto-float" data-code-summary="Code to make the z-score matrix from the discovery dataset">
+<div id="lst-cnt-cpm" class="r cell-code listing quarto-float quarto-figure quarto-figure-left anchored" data-code-summary="Code to make the z-score matrix from the discovery dataset">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-cnt-cpm-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.9: Code to make the z-score matrix from the discovery dataset
@@ -581,7 +581,7 @@ Listing&nbsp;2.9: Code to make the z-score matrix from the discovery dataset
 <h3 data-number="2.2.4" class="anchored" data-anchor-id="sec-logreg"><span class="header-section-number">2.2.4</span> Univariate logistic regression</h3>
 <p>Using the binary outcomes, (i.e.&nbsp;case and control status) as dependant variables and the z-scores as independent variables, we applied a generalised linear model for each of the 15,150 genes using the <code>glm</code> function of R <code>stat</code> package (v4.0.3). Both the <a href="https://en.wikipedia.org/wiki/Akaike_information_criterion">Akaike information criterion (AIC)</a> and the <a href="https://en.wikipedia.org/wiki/Bayesian_information_criterion">Bayesian information criterion (BIC)</a> were obtained from the corresponding univariable model and the area under the <a href="https://en.wikipedia.org/wiki/Receiver_operating_characteristic">ROC curve</a> (AUC) was calculated using the <a href="https://cran.r-project.org/web/packages/pROC/"><code>pROC</code></a> package (v1.17.0.1). The p-values were calculated against the null hypothesis that is the odds ratio is equal to 1 and they were adjusted for multiple comparisons using <a href="https://en.wikipedia.org/wiki/False_discovery_rate#BH_procedure">Benjamini and Hochberg method</a>. The distribution of the p-values was tested against a uniform distribution using one-sample <a href="https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test">Kolmogorov-Smirnov test</a>, which is further explained in <a href="main_figure.html#sec-fig2a" class="quarto-xref"><span>Section 6.2.1</span></a>.</p>
 <div class="cell">
-<div id="lst-logreg" class="r cell-code listing quarto-float" data-code-summary="Code for univariate logisitic regression">
+<div id="lst-logreg" class="r cell-code listing quarto-float quarto-figure quarto-figure-left anchored" data-code-summary="Code for univariate logisitic regression">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-logreg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.10: Code for univariate logisitic regression
@@ -656,7 +656,7 @@ Listing&nbsp;2.10: Code for univariate logisitic regression
 <h2 data-number="2.3" class="anchored" data-anchor-id="sec-core-deg"><span class="header-section-number">2.3</span> Selection of core differentially expressed genes</h2>
 <p>To select a subset of genes that best explains the outcome of samples from the 28wkGA group of the discovery cohort, we used the following four criteria: 1) the p-values from DESeq2, 2) the p-values from edgeR, 3) AIC, and 4) AUC from univariable logistic regressions. Then we selected the top 1% genes for each category (i.e.&nbsp;151 genes of the lowest p-values from DESeq2 and edgeR, 151 genes having the lowest AIC, and 151 genes having the highest AUC) and constructed a Venn diagram using ggvenn (v0.1.0) R package (52). We selected a total of 17 genes satisfying all the four criteria (i.e.&nbsp;the intersection) and constructed a gene expression matrix (i.e.&nbsp;the 17 genes across the samples from the 28wkGA group of the discovery cohort) using the z-score.</p>
 <div class="cell">
-<div id="lst-set-core-deg" class="r cell-code listing quarto-float" data-code-summary="Code to find the core DEGs">
+<div id="lst-set-core-deg" class="r cell-code listing quarto-float quarto-figure quarto-figure-left anchored" data-code-summary="Code to find the core DEGs">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-set-core-deg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Listing&nbsp;2.11: Code to find the core DEGs
@@ -866,18 +866,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     }
     return false;
   }
-  const clipboard = new window.ClipboardJS('.code-copy-button', {
-    text: function(trigger) {
-      const codeEl = trigger.previousElementSibling.cloneNode(true);
-      for (const childEl of codeEl.children) {
-        if (isCodeAnnotation(childEl)) {
-          childEl.remove();
-        }
-      }
-      return codeEl.innerText;
-    }
-  });
-  clipboard.on('success', function(e) {
+  const onCopySuccess = function(e) {
     // button target
     const button = e.trigger;
     // don't keep focus
@@ -909,7 +898,29 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     }, 1000);
     // clear code selection
     e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
   });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
   const viewSource = window.document.getElementById('quarto-view-source') ||
                      window.document.getElementById('quarto-code-tools-source');
   if (viewSource) {
@@ -968,7 +979,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
         return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
     }
     // Inspect non-navigation links and adorn them if external
- 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool)');
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
     for (var i=0; i<links.length; i++) {
       const link = links[i];
       if (!isInternal(link.href)) {
@@ -1625,7 +1636,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 <span id="cb1-320"><a href="#cb1-320"></a><span class="in">core17 &lt;- top1pct.genesZ # used in 5-fold CV</span></span>
 <span id="cb1-321"><a href="#cb1-321"></a><span class="in">```</span></span>
 <span id="cb1-322"><a href="#cb1-322"></a></span>
-<span id="cb1-323"><a href="#cb1-323"></a>The Venn diagram for the 17 core DEGs is shown in @sec-fig2c.</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-323"><a href="#cb1-323"></a>The Venn diagram for the 17 core DEGs is shown in @sec-fig2c.</span></code><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></pre></div>
 </div></div></div></div></div>
 </div> <!-- /content -->
 <footer class="footer">

@@ -197,16 +197,6 @@
     ]
   },
   {
-    "objectID": "figure.html",
-    "href": "figure.html",
-    "title": "Figures",
-    "section": "",
-    "text": "This chapter demonstrates the R and the dot codes that make 6  Main Figures and 7  Supplementary Text Figures shown in the paper.\n\n\n\n\n\n\nR package dependencies\n\n\n\nYou need to install R ggplot2 as well as my own publication theme called theme_Publication in _libs.\n\n\nCode\nlibrary(\"ggplot2\")\nsource(\"static/R/_libs/theme_publish.R\")",
-    "crumbs": [
-      "Figures"
-    ]
-  },
-  {
     "objectID": "main_figure.html",
     "href": "main_figure.html",
     "title": "6  Main Figures",
@@ -314,6 +304,16 @@
     "crumbs": [
       "Figures",
       "<span class='chapter-number'>7</span>  <span class='chapter-title'>Supplementary Text Figures</span>"
+    ]
+  },
+  {
+    "objectID": "figure.html",
+    "href": "figure.html",
+    "title": "Figures",
+    "section": "",
+    "text": "This chapter demonstrates the R and the dot codes that make 6  Main Figures and 7  Supplementary Text Figures shown in the paper.\n\n\n\n\n\n\nR package dependencies\n\n\n\nYou need to install R ggplot2 as well as my own publication theme called theme_Publication in _libs.\n\n\nCode\nlibrary(\"ggplot2\")\nsource(\"static/R/_libs/theme_publish.R\")",
+    "crumbs": [
+      "Figures"
     ]
   }
 ]
