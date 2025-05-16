@@ -3,11 +3,13 @@
 This chapter demonstrates the `R` codes that make supplementary text figures shown in the paper. 
 Making the main figures are shown in @sec-main-figure.
 
-## Supplementary Text Figure A {#sec-si-figure-a}
-![](static/figure/cfRNA.SI.FigA.png)
+## Supplementary Text Figure 1 {#sec-si-figure1}
+
+### Supplementary Text Figure 1A {#sec-si-figure1-a}
+![](static/figure/cfRNA.SI.FigA.png){#fig-si-fig1a}
 
 ```{r }
-#| label: fig-si-a
+#| label: si-fig-1a
 #| eval: false
   lazyLoad("downsample.chrY.TPM_cache/beamer/load_ds_salmon_4b8dd727729fd0ae5deb423d69e7c16d") # dl.chrY.TPM and dl.stat
 
@@ -35,11 +37,11 @@ Making the main figures are shown in @sec-main-figure.
   dev.off()
 ```
 
-## Supplementary Text Figure B {#sec-si-figure-b}
-![](static/figure/cfRNA.SI.FigB.png)
+### Supplementary Text Figure 1B {#sec-si-figure-1b}
+![](static/figure/cfRNA.SI.FigB.png){#fig-si-fig1b}
 
 ```{r }
-#| label: fig-si-b
+#| label: si-fig-1b
 #| eval: false
   lazyLoad("downsample.chrY.TPM_cache/beamer/load_ds_salmon_4b8dd727729fd0ae5deb423d69e7c16d") # dl.chrY.TPM and dl.stat
 
@@ -95,11 +97,11 @@ Making the main figures are shown in @sec-main-figure.
   dev.off()
 ```
 
-## Supplementary Text Figure C {#sec-si-figure-c}
-![](static/figure/cfRNA.SI.FigC.png)
+### Supplementary Text Figure 1C {#sec-si-figure-1c}
+![](static/figure/cfRNA.SI.FigC.png){#fig-si-fig1c}
 
 ```{r }
-#| label: fig-si-c
+#| label: si-fig-1c
 #| eval: false
   # load the transcript definition used in Salmon (SA)
   load("RData/gr.ensg.Homo_sapiens.GRCh38.88.cdna.all.ncrna.fa.gz.RData") %>% system.time # isa GRanges
@@ -187,11 +189,11 @@ Making the main figures are shown in @sec-main-figure.
   dev.off()
 ```
 
-## Supplementary Text Figure D {#sec-si-figure-d}
-![](static/figure/cfRNA.SI.FigD.png)
+### Supplementary Text Figure 1D {#sec-si-figure-1d}
+![](static/figure/cfRNA.SI.FigD.png){#fig-si-fig1d}
 
 ```{r }
-#| label: fig-si-d
+#| label: si-fig-1d
 #| eval: false
   dl.chrY.TPM %>% names
 
@@ -250,4 +252,175 @@ Making the main figures are shown in @sec-main-figure.
   pdf(file="Figures/Suppl/cfRNA.Suppl.Text.Fig1D.v2.pdf", width=11, height=7, title="Trim vs No trim")
   cowplot::plot_grid(p1.chrY.trim, labels=c("D"),label_size=27)
   dev.off()
+```
+
+## Supplementary Text Figure 2 {#sec-si-figure2}
+![](static/figure/cfRNA.SI.Fig2.png){#fig-si-fig2}
+
+```{r}
+#| label: si-fig2
+#| eval: false
+load("RData/dl.enet.result.core17.RData") # Validation of ENet models from 28wk, discovery dataset (preterm)
+load("RData/dl.combined.result.core17.RData") # Validation of ENet models from the combined model (preterm+term)
+
+##
+## AUC in All 
+##
+ga<-paste0(c(12,20,28,36), "wk")
+term<-c("(preterm)","(term)")
+my.dataset<-data.table(expand.grid(ga,term))[,Var3:=paste0(Var1,Var2)][Var3!="36wk(preterm)"]$Var3
+my.dataset<-c("Munchel",my.dataset)
+
+dt.auc.long<-
+lapply(my.dataset, function(this.dataset){
+  rbind(
+        (lapply(2:10, function(my.num) dl.combined.result[[my.num-1]][fold==this.dataset,.(Num=my.num,Predictor=predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)]) %>% rbindlist)[,Model:="preterm+term (28wk)"]
+        ,
+        (lapply(2:10, function(my.num) dl.enet.result[[my.num-1]][fold==this.dataset & grepl("ENet",methods),.(Num=my.num,Predictor=predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)]) %>% rbindlist)[,Model:="preterm (28wk)"]
+        
+  )[,Dataset:=this.dataset] 
+}) %>% rbindlist %>% setcolorder(c("Dataset","Model"))
+
+dt.auc.long[Dataset!="Munchel",GA:=substr(Dataset,1,4)]
+dt.auc.long[Dataset!="Munchel",Source:=substr(Dataset,6,nchar(Dataset)-1)][,Source:=ifelse(Source=="preterm","Discovery (preterm)","Validation (term)")]
+dt.auc.long[Dataset=="Munchel",`:=`(Source="Munchel",GA="36wk")]
+dt.auc.long$Model<-factor(dt.auc.long$Model, level=c("preterm (28wk)","preterm+term (28wk)"))
+dt.auc.long$Source<-factor(dt.auc.long$Source, level=c("Discovery (preterm)","Validation (term)","Munchel"))
+
+p.auc.combined.A<-ggplot(dt.auc.long[Source!="Munchel"], aes(Num, AUC_test,group=Model)) + 
+  geom_rect(data = dt.auc.long[Source!="Munchel" & GA=="28wk"],aes(fill = GA),fill="grey90",xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf,alpha = 0.2) +
+  geom_pointrange(aes(col=Model,ymin=AUC_test_lo, ymax=AUC_test_hi),
+                  position=position_dodge(width=0.4),
+                  size=.8,alpha=.8) +
+  scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+  scale_x_continuous(breaks=2:10) +
+  labs(y="AUC", x="Number of predictor mRNA in the training model") +
+  scale_color_manual(values=c("grey30",cbPalette2[2])) +
+  facet_grid(Source~GA) + 
+  theme_Publication() +
+  theme(legend.position="", panel.border = element_rect(colour = "black"))
+
+p.auc.combined.B<-ggplot(dt.auc.long[Source=="Munchel"], aes(Num, AUC_test,group=Model)) + 
+  geom_pointrange(aes(col=Model,ymin=AUC_test_lo, ymax=AUC_test_hi),
+                  position=position_dodge(width=0.4),
+                  size=.8,alpha=.8) +
+  scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+  scale_x_continuous(breaks=2:10) +
+  labs(y="AUC", x="Number of predictor mRNA in the training model                                     ") +
+  scale_color_manual(values=c("grey30",cbPalette2[2])) +
+  facet_grid(Source~.) + 
+  theme_Publication() +
+  theme(legend.position="left", 
+        panel.border = element_rect(colour = "black"),
+        plot.margin=margin(1,-15,7,0)
+  )
+
+p.auc.bottom<-cowplot::plot_grid(NULL,p.auc.combined.B, nrow=1,labels=c("","B"),label_size=27,rel_widths=c(.87,1))
+
+pdf(file="Figures/Suppl/cfRNA.Suppl.Data.Fig.combined.AUC.AB.pdf", width=12, height=10, title="Suppl Fig: AUC from the combined model vs preterm model")
+cowplot::plot_grid(p.auc.combined.A, p.auc.bottom,ncol=1, labels=c("A",""),label_size=27,rel_heights=c(2,1), align="v", axis="lr")
+dev.off()
+```
+
+## Supplementary Text Figure 3 {#sec-si-figure3}
+![](static/figure/cfRNA.SI.Fig3.png){#fig-si-fig3}
+
+```{r}
+#| label: si-fig3
+#| eval: false
+load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData") # dt.cpmZ (preterm)
+load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
+load("RData/dt.cpmZ.munchel.RData") # dt.cpmZ.munchel (Munchel)
+
+dt.lep.pappa2<-rbind(
+                      (dt.cpmZ[geneName %in% c("LEP","PAPPA2")] %>% dcast.data.table(SampleID+GA+Condition~geneName, value.var="logCPMZ"))[,Source:="Discovery"],
+                      (dt.cpmZ.term[geneName %in% c("LEP","PAPPA2")] %>% dcast.data.table(SampleID+GA+Condition~geneName, value.var="logCPMZ"))[,Source:="Validation"],
+                      (dt.cpmZ.munchel[geneName %in% c("LEP","PAPPA2")] %>% dcast.data.table(SampleID+Condition~geneName, value.var="logCPMZ"))[,Source:="Munchel"]
+    ,fill=T)
+
+dt.lep.pappa2[,Dataset:=ifelse(is.na(GA),Source,paste0(Source,"(",GA,")"))]
+dt.lep.pappa2[,.(Cor=cor(LEP,PAPPA2),Pval=cor.test(LEP,PAPPA2)$p.value),.(Source,GA)][order(Source,GA)] 
+dt.lep.pappa2[Condition=="Case",.(Cor=cor(LEP,PAPPA2),Pval=cor.test(LEP,PAPPA2)$p.value),.(Source,GA)][order(Source,GA)] 
+
+p1<-
+ggplot(dt.lep.pappa2[Source!="Munchel"], aes(LEP,PAPPA2)) +
+  geom_rect(data = dt.lep.pappa2[Source=="Discovery" & GA=="28wk"],aes(fill = GA),fill="grey80",xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf,alpha = 0.2) +
+  geom_point(aes(col=Condition),size=3,shape=21,stroke=1.1,alpha=.8) +
+  facet_grid(Source~GA) + 
+  ggsci::scale_color_jama() +
+  labs(x="Z-score (LEP)",y="Z-score (PAPPA2)") +
+  theme_Publication() +theme (panel.border = element_rect(colour = "black"),legend.position="top")
+
+p2<-
+ggplot(dt.lep.pappa2[Source=="Munchel"], aes(LEP,PAPPA2)) +
+  geom_point(aes(col=Condition),size=3,shape=21,stroke=1.1,alpha=.8) +
+  facet_grid(Source~.) + 
+  ggsci::scale_color_jama() +
+  labs(x="",y="") +
+  theme_Publication() +theme (panel.border = element_rect(colour = "black"),legend.position="")
+
+p2.right<-cowplot::plot_grid(NULL,p2,labels=c("","B"),ncol=1,label_size=27,rel_heights=c(1,1))
+p.corr2<-cowplot::plot_grid(p1, p2.right, labels=c("A",""),label_size=27,rel_widths=c(2.8,1))
+
+cairo_pdf(file="Figures/Suppl/cfRNA.Suppl.LEP.PAPPA2.cor2.pdf", width=12,height=6, onefile=T)
+p.corr2
+dev.off()
+```
+
+## Supplementary Text Figure 4, 5, and 6 {#sec-si-figure4-6}
+![](static/figure/cfRNA.SI.Fig4.5.6.pdf#zoom=50&&navpanes=0&statusbar=0&messages=0&pagemode=none){width=100% height=475px}
+[Full Screen](static/figure/cfRNA.SI.Fig4.5.6.pdf)
+
+You may need to refer to @sec-ga-long and @sec-fig5b
+
+```{r rlmer_csh1_plot}
+#| label: si-fig456
+#| eval: false
+
+targets<-c(
+  dt.R2.GA2[order(-r2m)][["gene"]][1:100], # top 100 by r2
+  dt.R2.GA2[order(p.combined)][["gene"]][1:100], # top 100 by the combined p-value
+  dt.R2.GA[BH.GA<0.05][order(p.GA)][coef.GA<0][["gene"]][1:100] # top 100 decreasing
+  ) %>% unique
+#
+li.plots<-lapply(dl.logCPM[targets], function(dt.foo){
+    my.gene<-unique(dt.foo[["geneName"]])
+    message(my.gene)
+
+    r2m<-li.lmer[[my.gene]][["stat"]][Model=="GA2"][["r2m"]] %>% round(3)
+    r2c<-li.lmer[[my.gene]][["stat"]][Model=="GA2"][["r2c"]] %>% round(3)
+    #my.title=paste0(my.gene," (r2m:",r2m,", r2c:",r2c,")")
+    my.title=paste0(my.gene," (r2m:",r2m,")")
+
+    my.title.y<-latex2exp::TeX(r"($\textbf{log_2 CPM}$)")
+
+    ggplot(dt.foo, aes(x = GAwk, y = logCPM)) +
+    geom_line(aes(group = POPSID), linewidth = .5, col="grey80",alpha=.7) +
+    geom_point(aes(color = as.factor(GA)), size=2, alpha=.7) +
+    labs(subtitle=my.title, x = "Gestational Age (weeks)", y=my.title.y, color = "GA (week)") +
+    geom_ribbon(data=li.lmer[[my.gene]][["predict"]], aes(ymin=conf.low, ymax=conf.high), alpha=0.6, fill = "grey40") +
+    geom_line(data=li.lmer[[my.gene]][["predict"]], linewidth=1.5, col="blue",alpha=0.8) + 
+    scale_x_continuous(breaks=c(12,20,28,36)) +
+    scale_color_manual(values=cbPalette2) +
+    theme_Publication() +
+    theme(legend.position="none")
+})
+
+# Top 100 by R2M
+file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.pdf'))
+cairo_pdf(filename=file.name1, width=14, height=9, onefile=T)
+grid.text(label=paste0("Supplementary Figure 4.\nTop 100 cfRNAs\nby the coefficient of determination"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.6,just="center")
+gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(-r2m)][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+
+# Top 100 by p.combined
+grid.newpage()
+grid.text(label=paste0("Supplementary Figure 5.\nTop 100 cfRNAs\nby the combined p-values"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.6,just="center")
+gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(p.combined)][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+
+# Top 100 by negative coefficient in linear mixed effect model (GA only)
+grid.newpage()
+grid.text(label=paste0("Supplementary Figure 6.\nTop 100 cfRNAs\nsignificantly decreasing\n(negative coefficient)\nby gestational age"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.6,just="center")
+gridExtra::marrangeGrob(li.plots[dt.R2.GA[BH.GA<0.05][order(p.GA)][coef.GA<0][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+dev.off()
+
 ```

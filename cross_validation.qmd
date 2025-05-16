@@ -294,13 +294,13 @@ if(file.exists(my.cpmZ.RData)){
 }
 ```
 
-## Data split for 5-fold CV {#sec-cv-split}
-We randomly split the samples into 5 strata by distributing the number of case and control outcomes as even as possible across the 5 folds. This stratified 5-fold splitting was repeated 5 times by changing a seed number in each repetition, and the 11 ML models (see below #sec-cv-11ML) were trained to choose a desired number of predictors from 2 to 6. 
-
-```{r split-data-cv}
-#| label: split-data-cv
+Now, it is ready to set up discovery, validation and the external validation dataset:
+```{r }
+#| lst-label: lst-data-setup
+#| lst-cap: Code to setup datset from discovery cohort, validation cohrot, and Munchel
+#| code-fold: true # does not work with `lst-`
 #| eval: false
-#| code-summary: Code to split 5-fold with 5 repetitions
+
 load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData") # dt.cpmZ (preterm)
 load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
 load("RData/dt.cpmZ.munchel.RData") # dt.cpmZ.munchel (Munchel)
@@ -317,7 +317,15 @@ li.mat[["test"]]<-lapply(list(`12wk`="12wk",`20wk`="20wk",`28wk`="28wk",`36wk`="
   })
 
 li.mat[["munchel"]]<-dt.cpmZ.munchel[geneName %in% core17,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") # isa 'matrix'
+```
 
+## Data split for 5-fold CV {#sec-cv-split}
+We randomly split the samples into 5 strata by distributing the number of case and control outcomes as even as possible across the 5 folds. This stratified 5-fold splitting was repeated 5 times by changing a seed number in each repetition, and the 11 ML models (see below @sec-cv-11ML) were trained to choose a desired number of predictors from 2 to 6. 
+
+```{r split-data-cv}
+#| label: split-data-cv
+#| code-summary: Code to split 5-fold with 5 repetitions
+#| eval: false
 ##############################################
 # Set the 5-fold with 5 rep for 28wk preterm #
 ##############################################
@@ -402,7 +410,7 @@ for(iRep in 1:nRep){
 ## 11 machine learning methods {#sec-cv-11ML}
 We considered a total of 11 ML methods to select the best performing method based on the 5-fold cross-validation (CV) with 5 repetitions. 
 
-![11 machine-learning methods considered in this study](static/figure/cfRNA.11ML.png){#fig-11ML}
+![11 machine-learning methods considered in this study](static/figure/cfRNA.11MLr.png){#fig-11ML}
 
 For the three penalised regression methods (ENet1, ENet2 and LASSO), they were firstly fitted by using the [train](https://topepo.github.io/caret/model-training-and-tuning.html) function for the two Elastic net methods (ENet1 and ENet2) and the [cv.glmnet](https://glmnet.stanford.edu/reference/cv.glmnet.html) function for LASSO, from [the caret](https://topepo.github.io/caret/) (v6.0.94) and [the glmnet](https://glmnet.stanford.edu/) (v.4.1.2) R package, respectively. For ENet1, both the parameter $\alpha$ and $\lambda$ were tuned by the `caret::train`, whereas the parameter $\lambda$ was further tuned by the `glmnet::cv.glmnet` for ENet2. 
 
@@ -664,6 +672,7 @@ runRFE2 <-function(x, my.method="svmRadial", my.num=4, my.index, is.final=F){
   all.features<-colnames(x)[colnames(x)!="y"]
 
   li.methods<-list(
+    `adaboost`="adaboost",
     `svmLinear`="svmLinear",
     `svmRadial`="svmRadial",
     `nnet`="nnet",
@@ -890,6 +899,7 @@ if(file.exists(my.RData)){
   source('SVM-RFE/msvmRFE.R')
 
   li.methods<-list(
+    `adaboost`="adaboost",
     `svmLinear`="svmLinear",
     `svmRadial`="svmRadial",
     `nnet`="nnet",

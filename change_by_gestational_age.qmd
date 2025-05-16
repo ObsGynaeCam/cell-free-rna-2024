@@ -1,0 +1,254 @@
+# Longitudinal Analysis {#sec-ga}
+
+Here we sought to identify all cfRNAs that change in abundance as gestation progresses.
+
+For this analysis, we used a total of 96 healthy samples from the validation cohort (i.e. term delivery) and carried out two types of analyses: **1)** to identify cfRNAs that differ between specific gestational ages (_i.e._ 12wk to 20wk, 20wk to 28wk, and 28wk to 36wk), and **2)** a longitudinal study of cfRNAs across the four gestational ages. 
+
+Below shows the number of (healthy) samples used in this analysis by gestational age (see @lst-term-samples for both cases and controls):
+```{r healthy-term-samples}
+#| label: lst-term-ctl-samples
+#| lst-label: lst-term-ctl-samples
+#| lst-cap: "Tabulate non-case samples in the validation cohort"
+dt.samples<-data.table::fread("static/R/data/dt.samples.csv")
+dt.samples<-dt.samples[!SampleID %in% c("GS-B-374-UW","GS-B-374-UW-b","GS-59-CX","GS-59-CX-b","GS-179-HQ")]
+xtabs(~GA+Condition, dt.samples[Cohort=="term" & Condition=="Control"])
+```
+
+## cfRNAs that differ between specific gestational ages {#sec-ga-deg}
+We used [`DESeq2`](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) Bioconductor package for this analysis.
+
+```{r long-ga-deseq2-a}
+#| label: deseq2-by-ga1
+#| eval: false
+#| code-summary: Code to find DEGs by gestational age via `DESeq2`
+library(magrittr)
+library(DESeq2)
+library("BiocParallel")
+register(MulticoreParam(12))
+
+# set the file name to store the result of DEG by GA via `DESEq2
+myRData="RData/dl.DEG.GA.control.term.POPS-2022.GRCh38.88.RData"
+if(file.exists(myRData)){
+  load(myRData)
+}else{
+  my.dds.RData<-paste0("RData/dds.term.",my.salmon.index,".RData")
+  load(my.dds.RData)
+  # use 15150 genes considered in this study
+  dds.f2.term<-DESeq(dds.term[rownames(dds.f2)], parallel=T)
+
+  # using only control samples (i.e. healthy)
+  keep.samples<-colData(dds.f2.term)$Condition=="Control"
+  dds.ga.term<-dds.f2.term[,keep.samples] 
+  design(dds.ga.term) <- formula(~ Batch + Sex + GA) 		# NB, GA is the last term
+
+  dds.ga.term<-DESeq(dds.ga.term, parallel=TRUE) # isa 'DESeqDataSet'
+
+  GA.diff<-c("20wk-12wk","28wk-20wk","36wk-28wk")
+  li.DEG.GA<-lapply(GA.diff, function(i){
+    my.ga<-strsplit(i,"-")[[1]]
+    my.res<-results(dds.ga.term, 
+            independentFiltering=FALSE,
+            lfcThreshold=log2(minFC), 
+            contrast=c("GA",c(my.ga[1],my.ga[2])),
+            parallel=TRUE)  
+
+    lfcShrink(dds.ga.term, 
+              res=my.res, #li.res[[my.GA]],
+              lfcThreshold=log2(minFC), # not applicable for 'asher' 
+              type="ashr",
+              parallel=TRUE)  
+  })
+  names(li.DEG.GA)<-GA.diff
+
+  dl.DEG.GA<-lapply(li.DEG.GA, function(i)
+    data.table(`gene_id`=rownames(i), as.data.frame(i))[order(pvalue)][,`:=`("BH"=p.adjust(pvalue,"BH"),"BY"=p.adjust(pvalue,"BY"),"bf"=p.adjust(pvalue,"bonferroni"))]
+  )
+  save(dl.DEG.GA, file=myRData)
+}
+```
+
+Now check the number of DEG by GA intervals.
+
+```{r long-ga-deseq2-b}
+#| label: deseq2-by-ga2
+#| eval: false
+#| code-summary: Code to find the number of DEGs by gestational age via `DESeq2`
+dl.DEG.GA[["20wk-12wk"]][BH<0.05] %>% nrow # n=76
+dl.DEG.GA[["28wk-20wk"]][BH<0.05] %>% nrow # n=64
+dl.DEG.GA[["36wk-28wk"]][BH<0.05] %>% nrow # n=55
+```
+
+## A longitudinal study of cfRNAs across the four gestational ages {#sec-ga-long}
+We used [`lme4`](https://cran.r-project.org/web/packages/lme4/index.html) and [`lmerTest`](https://cran.r-project.org/web/packages/lmerTest/index.html) R packages for this analysis.
+
+### Prepare the dataset
+Below shows the exact gestational age (in weeks) and its normalised GA:
+
+```{r long-ga-lmer1}
+#| label: lst-lmer-by-ga1
+#| lst-label: lst-lmer-by-ga1
+#| lst-cap: Summary of the exact gestational age
+library(magrittr)
+dt.GA<-readxl::read_excel("static/R/data/cfRNA_samples_GA_exact.xlsx") %>% data.table
+dt.samples<-merge(dt.samples, dt.GA[,.(SampleID,GAwk=GA_exact)]) # n=383
+dt.samples$POPSID<-factor(dt.samples$POPSID)
+
+# summary of GA (in weeks)
+lapply(split(dt.samples, dt.samples$GA), function(DT) DT$GAwk %>% summary)
+```
+
+```{r long-ga-lmer1}
+#| label: lst-lmer-by-ga1b
+#| lst-label: lst-lmer-by-ga1b
+#| lst-cap: Summary of the relative gestational age
+# normalise GA to make 12wk=>1, 20wk=>2, 28wk=>3, and 36wk=>4
+dt.samples[,rGAwk:=(GAwk-4)/8] 
+lapply(split(dt.samples, dt.samples$GA), function(DT) DT$rGAwk %>% summary)
+```
+
+And we need the transcript quatification matrix (in `CPM`) in `Validation` cohort, which is also shown in @sec-cv-prep-int-val.
+
+```{r long-ga-lmer1}
+#| label: lmer-by-ga2
+#| eval: false
+#| code-summary: Code to prepare CPM by transcript
+#####################
+## Based on logCPM ##
+#####################
+load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
+
+dt.logCPM<-merge(dt.cpmZ.term[Condition=="Control"],
+                 dt.samples[,.(SampleID,POPSID,GAwk,rGAwk)],
+                 by="SampleID"
+              )
+
+dl.logCPM<-split(dt.logCPM, dt.logCPM$geneName)
+dl.logCPM %>% length # n=15150
+rm(dt.logCPM) # free the memory
+```
+
+### Build the models using quaratic term (i.e. $GA^2$) and linear term ($GA$)
+```{r rlmer_quaratic1}
+#| label: lmer-by-ga3
+#| eval: true
+#| code-summary: Code to run longitudinal analysis of cfRNA change by gestational age via `lme4`
+if(file.exists("static/R/data/li.lmer.RData")){
+  load("static/R/data/li.lmer.RData")
+}else{
+  library(lme4)
+  library(lmerTest)
+  library(MuMIn)
+  library(ggeffects)
+
+  li.lmer<-
+  lapply(dl.logCPM, function(dt.foo){ # by each gene
+    my.gene<-unique(dt.foo[["geneName"]])
+    message(my.gene)
+
+    #####################################################
+    ## 1a. Mixed Effect Model via lmerTest (non-linear) #
+    #####################################################
+    my.lmer.GA2 <- lmerTest::lmer(logCPM ~ 1 + rGAwk + I(rGAwk^2) + (1 | POPSID), data = dt.foo)
+    dt.predict.GA2<- 
+      my.lmer.GA2 %>% ggeffects::ggpredict(terms = list(rGAwk= seq(min(dt.foo$rGAwk), max(dt.foo$rGAwk), length = 20)), verbose = FALSE) %>% data.table %>% setnames("x","rGAwk") %>% setnames("predicted","logCPM")
+    dt.predict.GA2[,GAwk:=rGAwk*8 +4][,group:=NULL][,rGAwk:=NULL] %>% setcolorder("GAwk")
+
+    mat.coef<-lmerTest:::get_coefmat(my.lmer.GA2)
+    my.coeff.GA2<-mat.coef[2:3,1,drop=F] %>% t
+    my.pval.GA2<-mat.coef[2:3,5,drop=F] %>% t
+    my.r2.GA2<-MuMIn::r.squaredGLMM(my.lmer.GA2)
+
+    dt.lmer.GA2<-data.table(my.gene,my.r2.GA2,my.coeff.GA2, my.pval.GA2) %>% setnames(c("gene","r2m","r2c","coef.GA","coef.GA2","p.GA","p.GA2"))
+
+    ##############################################
+    ## 1b. Mixed Effect Model via lmer4 (linear) #
+    ##############################################
+    my.lmer.GA <- lme4::lmer(logCPM ~ 1 + rGAwk + (1 | POPSID), data = dt.foo)
+    dt.predict.GA <- 
+      my.lmer.GA %>% ggeffects::ggpredict(terms = list(rGAwk= seq(min(dt.foo$rGAwk), max(dt.foo$rGAwk), length = 20)), verbose = FALSE) %>% data.table %>% setnames("x","rGAwk") %>% setnames("predicted","logCPM")
+    dt.predict.GA[,GAwk:=rGAwk*8 +4][,group:=NULL][,rGAwk:=NULL] %>% setcolorder("GAwk")
+
+    mat.coef<-lmerTest:::get_coefmat(my.lmer.GA)
+    my.coeff.GA<-mat.coef[2:2,1,drop=F] %>% t
+    my.pval.GA<-mat.coef[2:2,5,drop=F] %>% t
+    my.r2.GA<-MuMIn::r.squaredGLMM(my.lmer.GA)
+
+    dt.lmer.GA<-data.table(my.gene,my.r2.GA,my.coeff.GA,NA,my.pval.GA,NA) %>% setnames(c("gene","r2m","r2c","coef.GA","coef.GA2","p.GA","p.GA2"))
+
+    ###############
+    ## Anova test #
+    ###############
+    my.anova<-anova(my.lmer.GA2, my.lmer.GA)
+
+    ## Summary
+    dt.lmer<-
+      rbind(
+      cbind("Model"="GA2",dt.lmer.GA2),
+      cbind("Model"="GA",dt.lmer.GA)
+      )[,p.anova:=my.anova[["Pr(>Chisq)"]][2]] %>% setcolorder("gene")
+
+    # return this list object
+    list(`stat`=dt.lmer, `predict`=dt.predict.GA2, `predict.GA`=dt.predict.GA)
+  })
+  save(li.lmer, file="static/R/data/li.lmer.RData")
+}
+```
+
+### Quadratic ($GA^2$) and linear ($GA$) models 
+```{r ga-non-linear-r2m}
+#| label: tbl-lmer-by-ga4-r2m
+#| code-summary: Code to generate a table quadratic ($GA^2$) models per gene
+#| tbl-cap: Top 100 quadratic ($GA^2$) model by the marginal $R^2$
+library(DT)
+
+dt.R2<-(lapply(li.lmer, function(li.model) li.model[["stat"]]) %>% rbindlist)[order(-r2m)]
+
+## $GA2$
+dt.R2.GA2<-dt.R2[Model=="GA2"]
+dt.R2.GA2[,p.combined:=pchisq(-2 * (log(p.GA) + log(p.GA2)), 2 * 2, lower.tail = FALSE)]
+dt.R2.GA2[,BH.GA:=p.adjust(p.GA,"BH")]
+dt.R2.GA2[,BH.GA2:=p.adjust(p.GA2,"BH")]
+dt.R2.GA2[,BH.combined:=p.adjust(p.combined,"BH")]
+dt.R2.GA2[,BH.anova:=p.adjust(p.anova,"BH")]
+
+dt.R2.GA2[order(-r2m)][1:100][,-"Model"] %>%
+  datatable(extensions = 'Buttons',options = list( dom = 'Bfrtip',
+                                                  buttons =list('copy', list(extend = 'collection',buttons = c('csv', 'excel', 'pdf'),text = 'Download'))
+                                                  )) %>%
+  formatRound(columns=c('r2m', 'r2c','coef.GA','coef.GA2'), digits=2) %>%
+  formatSignif(columns = c('p.GA', 'p.GA2','p.anova','p.combined','BH.GA','BH.GA2','BH.combined','BH.anova'), digits = 2)
+```
+
+::: {.callout-note title="Marginal and conditional $R^2$"}
+R-squared (R²) is a statistical measure, also known as [the coefficient of determination](https://en.wikipedia.org/wiki/Coefficient_of_determination), that indicates how well a regression model predicts the values of a dependent variable. The marginal $R^2$ considers only the variance of the fixed effects (without the random effects), while the conditional $R^2$ takes both the fixed and random effects into account (i.e., the total model). We used [`MuMIn` `R` package](https://cran.r-project.org/web/packages/MuMIn/index.html) to calculate this.
+:::
+
+
+```{r ga-non-linear-pval}
+#| label: tbl-lmer-by-ga4-pval
+#| code-summary: Code to generate a table showing the quadratic ($GA^2$) models
+#| tbl-cap: Top 100 quadratic ($GA^2$) model by the combined p-value
+dt.R2.GA2[order(p.combined)][1:100][,-"Model"] %>%
+  datatable(extensions = 'Buttons',options = list( dom = 'Bfrtip',
+                                                  buttons =list('copy', list(extend = 'collection',buttons = c('csv', 'excel', 'pdf'),text = 'Download'))
+                                                  )) %>%
+  formatRound(columns=c('r2m', 'r2c','coef.GA','coef.GA2'), digits=2) %>%
+  formatSignif(columns = c('p.GA', 'p.GA2','p.anova','p.combined','BH.GA','BH.GA2','BH.combined','BH.anova'), digits = 2)
+```
+
+```{r ga-linear}
+#| label: tbl-lmer-by-ga5
+#| code-summary: Code to generate a table showing the linear ($GA$) models
+#| tbl-cap: Top 100 linear ($GA$) model by the negative coefficient
+# GA
+dt.R2.GA<-dt.R2[Model=="GA"]
+dt.R2.GA[,BH.GA:=p.adjust(p.GA,"BH")]
+dt.R2.GA[,BH.anova:=p.adjust(p.anova,"BH")]
+
+dt.R2.GA[BH.GA<0.05][order(p.GA)][coef.GA<0][1:100][,-c("Model","coef.GA2","p.GA2")] %>%
+  datatable(extensions = 'Buttons',options = list( dom = 'Bfrtip',
+                                                  buttons =list('copy', list(extend = 'collection',buttons = c('csv', 'excel', 'pdf'),text = 'Download'))
+                                                  )) %>%
+  formatRound(columns=c('r2m', 'r2c','coef.GA'), digits=2) %>%
+  formatSignif(columns = c('p.GA', 'p.anova','BH.GA','BH.anova'), digits = 2)
+```

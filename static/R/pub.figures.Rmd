@@ -162,19 +162,22 @@ tables: true
 
 ## Figure 3A - KCV
 ```{r fig3A.kcv, fig.cap="Fig3A"}
-  load("RData/dl.kcv.result.core17.RData")
+  #load("RData/dl.kcv.result.core17.RData")
+  load("RData/dl.kcv.result.core17.rev1.RData") # Nat Comms Rev1 2025-04-24 (NB, -LPOCV)
   #########################################################
   # Reulst of 11 ML methods based on 5-fold CV with 5 rep #
   #########################################################
-  (dt.foo<-lapply(dl.kcv.result, function(DT) DT[,.(.N, 
+  (dt.foo<-lapply(dl.kcv.result, function(DT) DT[method!="ENet1",.(.N, 
       mean_AUC_test=mean(AUC_test), mean_AUC_test_lo=mean(AUC_test_lo), mean_AUC_test_hi=mean(AUC_test_hi)
       ),method][,Rank:=frank(-mean_AUC_test)][order(Rank)]
   ) %>% rbindlist )
-  (dt.bar<-dt.foo[,.(.N,N_test=sum(N),rankSum=sum(Rank),meanRank=sum(Rank)/5, #F2-F6
-            meanAUC=mean(mean_AUC_test)/100,
-            meanAUC_lo=mean(mean_AUC_test_lo)/100,
-            meanAUC_hi=mean(mean_AUC_test_hi)/100)
-  ,method][order(rankSum)])
+  (dt.bar<-
+    dt.foo[,.(.N,N_test=sum(N),rankSum=sum(Rank),meanRank=sum(Rank)/5, #F2-F6
+            meanAUC=round(mean(mean_AUC_test)/100,3),
+            meanAUC_lo=round(mean(mean_AUC_test_lo)/100,3),
+            meanAUC_hi=round(mean(mean_AUC_test_hi)/100,3))
+    ,method][order(rankSum)][method=="ENet2",method:="ENet"]
+  )
 
   dt.bar[,.(`Method`=method,`Rank Sum`=rankSum,`Mean Rank`=meanRank,`Mean AUC`=meanAUC,`AUC Range`="")] %>%
   kbl(booktabs=F, digits=4) %>%
@@ -187,19 +190,20 @@ tables: true
     cex= 0.6,
     vline = .80,
     height=50)
-  ) %>% save_kable("Figures/cfRNA.Fig2.KCV.table.pdf")
+  ) %>% save_kable("Figures/cfRNA.Fig3.KCV.table.pdf")
 
   ##
   ##
+  (dt.baz<-dt.bar[,.(Method=method,`Rank sum`=rankSum, `Mean rank`=meanRank,`Mean AUC (95% CI)`=paste0(sprintf("%.3f",meanAUC)," (",paste0(sprintf("%.3f",meanAUC_lo))," - ",paste0(sprintf("%.3f",meanAUC_hi)),")"))])
+
+  library(ggpmisc)
+
   (dt.foo<-lapply(names(dl.kcv.result), function(NF) 
-      dl.kcv.result[[NF]][,.(NF=substr(NF,2,3),.N, 
+      dl.kcv.result[[NF]][method!="ENet1",.(NF=substr(NF,2,3),.N, 
       mean_AUC=mean(AUC_test)/100, mean_AUC_lo=mean(AUC_test_lo)/100, mean_AUC_hi=mean(AUC_test_hi)/100
       ),method][,Rank:=frank(-mean_AUC)][order(Rank)]
   ) %>% rbindlist )
-  dt.bar[,.(Method=method,`Rank sum`=rankSum, `Mean rank`=meanRank,round(meanAUC,3),round(meanAUC_lo,3),round(meanAUC_hi,3))][,.(Method,paste(V4,"(",V5,"-",V6,")"))]
-  (dt.baz<-dt.bar[,.(Method=method,`Rank sum`=rankSum, `Mean rank`=meanRank,`Mean AUC (95% CI)`=paste0(sprintf("%.3f",meanAUC)," (",round(meanAUC_lo,3)," - ",round(meanAUC_hi,3),")"))])
-
-  library(ggpmisc)
+  dt.foo[method=="ENet2",method:="ENet"]
 
   p.kcv<-ggplot(dt.foo, aes(method, mean_AUC)) +
     geom_pointrange(aes(col=NF, ymin=mean_AUC_lo, ymax=mean_AUC_hi),position=position_dodge(width=0.7), size=.9,alpha=.8) +
@@ -315,7 +319,7 @@ tables: true
     scale_x_discrete(limits=2:10) +
     scale_y_continuous(limits=c(0.7,max(dt.enet.lasso.tr$Score+10)),expand=c(0,0)) +
     scale_color_manual(values=c(cbPalette[4],cbPalette[3],"grey30",cbPalette[2]), breaks=c("BIC","AIC","AUC","LPOCV-AUC")) +
-    labs(x="Number of predictor mRNA in the training model",y="Score") +
+    labs(x="Number of predictor mRNAs in the training model",y="Score") +
     #facet_wrap(Method~.,ncol=2,scales="free_y",strip.position="top") +
     ggbreak::scale_y_break(c(1, 25),scales="free") +
     theme_Publication() +
@@ -580,6 +584,7 @@ tables: true
 
 ## Figure 5 - Abundance of LEP & PAPPA 
 ```{r fig5.LEP.PAPPA2.CPM, fig.cap="Fig5"}
+  library(scales)
   load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData") # dt.cpmZ (preterm)
   load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
   load("RData/dt.cpmZ.munchel.RData") # dt.cpmZ.munchel (Munchel)
@@ -673,10 +678,9 @@ tables: true
     theme_Publication() +theme (panel.border = element_rect(colour = "black"),legend.position="top")
 
   #
-  pdf(file="Figures/cfRNA.Fig5.sig.pdf", width=11, height=8.5, title="Fig5: Abundance of LEP and PAPPA2")
+  pdf(file="Figures/cfRNA.Fig5A.pdf", width=11, height=8.5, title="Fig5: Abundance of LEP and PAPPA2")
   p5.lep.pappa2.sig
   dev.off()
-
 
   ##
   ##
@@ -726,6 +730,44 @@ tables: true
     wilcox.test(dt.cpmZ[GA=="20wk" & geneName=="LEP" & Condition=="Case"]$logCPM, dt.cpmZ[GA=="28wk" & geneName=="LEP" & Condition=="Case"]$logCPM)$p.value
   }
 ```
+
+## Figure 5B. Longitudinal Analysis via Mixed Effect Model
+```{r cfrna-lmer1}
+  # see longitudinal_analysis.Rmd
+  my.genes<-c("ALPP", "C2orf72", "CAPN6", "CSHL1", "CYP11A1", "HSD3B1", "LINC00967", "MUC15", "PAPPA", "RAB3B", "SVEP1", "TEAD3", "TFAP2A", "TINCR", "TMEM54","VGLL3") # n=16
+  my.genes %>% length
+
+  dt.foo<-dl.logCPM[my.genes] %>% rbindlist %>% setnames("geneName","gene")
+  dt.bar<-lapply(my.genes, function(my.gene) data.table(gene=my.gene,li.lmer[[my.gene]][["predict"]])) %>% rbindlist
+
+  #my.title.y<-latex2exp::TeX(r"($log_2 CPM \textbf{bold text}$)")
+  my.title.y<-latex2exp::TeX(r"($\textbf{log_2 CPM}$)")
+
+  p5.lmer<-
+      ggplot(dt.foo, aes(x = GAwk, y = logCPM)) +
+      geom_line(aes(group = POPSID), linewidth = .5, col="grey80",alpha=.7) +
+      geom_point(aes(color = as.factor(GA)), size=2, alpha=.5) +
+      labs(x = "Gestational Age (weeks)", y= my.title.y) +
+      theme(legend.position = "top") +
+      geom_ribbon(data=dt.bar, aes(ymin=conf.low, ymax=conf.high), alpha=0.6, fill = "grey40") +
+      geom_line(data=dt.bar, linewidth=1.5, col="blue",alpha=0.8) + 
+      scale_x_continuous(breaks=c(12,20,28,36)) +
+      scale_color_manual(values=cbPalette2) +
+      facet_wrap(~gene, nrow=4, scales="free_y") +
+      theme_Publication() +
+      theme(legend.position="none")
+
+  #
+  pdf(file="Figures/cfRNA.Fig5B.lmer.pdf", width=11, height=11, title="Fig5: longitudinal analysis")
+  #cowplot::plot_grid(p5.lep.pappa2.sig, p5.lmer, labels="AUTO", ncol=1, label_size=27, align="v", axis="l")
+  p5.lmer
+  dev.off()
+
+  pdf(file="Figures/cfRNA.Fig5.pdf", width=11, height=16, title="Fig5: LEP, PAPPA2 and longitudinal analysis")
+  cowplot::plot_grid(p5.lep.pappa2.sig, p5.lmer, rel_widths=c(1,1.2),labels="AUTO", ncol=1, label_size=27, align="v", axis="l")
+  dev.off()
+```
+
 
 # Tables
 
@@ -1273,26 +1315,61 @@ dl.ST<-list() # a list of data.table
 ## Suppl Table S6
 ```{r suppl.t.s6}
   # Supplementary Table 6 – the summary of 5-fold CV across 11 ML methods
-  load("RData/dl.kcv.result.core17.RData")
+  #load("RData/dl.kcv.result.core17.RData")
+  load("RData/dl.kcv.result.core17.rev1.RData") # Nat Comms Rev1 2025-04-24
   lapply(dl.kcv.result, nrow)
-  xtabs(~fold+method, dl.kcv.result[["F6"]])
-  dl.kcv.result[["F6"]][method=="LASSO"]
+  xtabs(~fold+method, dl.kcv.result[["F2"]])
+  dl.kcv.result[["F2"]][method=="glParallel"][order(-AUC)]
 
-  ## Summary by the method & predictors
-  dl.ST[["ST6"]]<-lapply(names(dl.kcv.result), function(NF) 
-      dl.kcv.result[[NF]][,.(NF=substr(NF,2,3),.N, 
-      mean_AUC=mean(AUC_test)/100, mean_AUC_lo=mean(AUC_test_lo)/100, mean_AUC_hi=mean(AUC_test_hi)/100
-      ),method][,Rank:=frank(-mean_AUC)][order(Rank)]
-  ) %>% rbindlist 
+  dt.kcv<-rbindlist(dl.kcv.result)
+  dt.kcv[,c("Fold","Rep"):=tstrsplit(fold,"\\.")] %>% setcolorder(c("N","Fold","Rep"))
+  fwrite(dt.kcv[,-"fold"], file="Tables/Suppl/SI.Table6.by.fold.csv")
+  #
 ```
 
 ## Suppl Table S7
 ```{r suppl.t.s7}
-  # Supplementary Table 7 – the final training models from ENet and LASSO
+  ## Summary by the method & predictors
+  dl.ST[["ST7"]]<-
+  dt.foo<-  lapply(names(dl.kcv.result), function(NF) 
+      dl.kcv.result[[NF]][,.(NF=substr(NF,2,3),.N, 
+      mean_AUC=mean(AUC_test)/100, mean_AUC_lo=mean(AUC_test_lo)/100, mean_AUC_hi=mean(AUC_test_hi)/100
+      ),method][,Rank:=frank(-mean_AUC)][order(Rank)]
+  ) %>% rbindlist 
 
+  # Nat Comms Rev1 2025-04-25
+  load("RData/dl.final.models.core17.rev1.RData")
+  dl.final.models[["F2"]]
+  dl.final.models[["F2"]][order(method,feature)][,.(predictor=paste(feature,collapse=",")),method][order(predictor)]
+
+  dt.bar<- lapply(names(dl.final.models), function(NF){
+    dl.final.models[[NF]][order(method,feature)][,.(NF=substr(NF,2,3),predictor=paste(feature,collapse=",")),method]
+  })  %>% rbindlist
+
+  fwrite(merge(dt.foo, dt.bar)[order(NF,Rank)], file="Tables/Suppl/SI.Table7.csv")
+
+  #
+load("RData/dl.final.result.core17.RData")
+dl.final.result[["F2"]][,.(methods,fold,predictor,AUC_test,LPOCV_test)][order(-AUC_test)]
+dl.final.result[["F2"]][predictor=="HBQ1,PAPPA2"][,.(methods,fold,predictor,AUC_test,AUC_test_lo,AUC_test_hi)][order(fold)]
+dl.final.result[["F2"]][predictor %in% c("HBQ1,PAPPA2","LEP,PAPPA2")][,.(methods,fold,predictor,AUC_test,LPOCV_test)] %>% dcast.data.table(methods+predictor~fold,value.var="AUC_test")
+
+(lapply(names(dl.final.result), function(FN)
+  dl.final.result[[FN]][grepl("glParallel",methods) & fold=="28wk(preterm)",-c("fold")][,`:=`(Method="LASSO",`N`=substr(FN,2,nchar(FN)) %>% as.integer)]
+) %>% rbindlist)[,-"methods"]
+```
+
+## Suppl Table S8
++ ENet result
+```{r suppl.t.s8}
+  # Supplementary Table 8 – the final training models from ENet and LASSO
   load("RData/dl.enet.result.core17.RData")
 
-  dl.ST[["ST7"]]<-rbind(
+  dl.enet.result[["F2"]][fold=="28wk(preterm)"]
+  dl.final.result[["F2"]][fold=="28wk(preterm)"]
+
+  dl.ST[["ST8"]]<-
+    rbind(
     (lapply(names(dl.enet.result), function(FN)
       dl.enet.result[[FN]][grepl("ENet",methods) & fold=="28wk(preterm)",-c("fold")][,`:=`(Method="ENet",`N`=substr(FN,2,nchar(FN)) %>% as.integer)]
     ) %>% rbindlist)[,-"methods"],
@@ -1300,6 +1377,114 @@ dl.ST<-list() # a list of data.table
       dl.enet.result[[FN]][grepl("LASSO",methods) & fold=="28wk(preterm)",-c("fold")][,`:=`(Method="LASSO",`N`=substr(FN,2,nchar(FN)) %>% as.integer)]
     ) %>% rbindlist)[,-"methods"]
     )
+```
+
+## Suppl Table S9
++ Validated AUC from combined model (preterm+term) vs. preterm dataset only
++ Compare the combined models vs those from the discovery model
+```{r``{r suppl.t.s9}}
+  load("RData/dl.enet.models.core17.RData") # ENet models from 28wk, discovery dataset (preterm)
+  load("RData/dl.enet.result.core17.RData") # Validation of ENet models from 28wk, discovery dataset (preterm)
+  load("RData/dl.combined.result.core17.RData") # Validation of ENet models from the combined model (preterm+term)
+
+  dl.enet2.models<-lapply(dl.enet.models, function(DT) DT[method=="ENet2"])
+
+  lapply(names(li.num)[1:7], function(my.num.F) cbind(dl.combined.models[[my.num.F]][order(rank)], 
+                                                 dl.enet2.models[[my.num.F]][order(rank)])
+  )
+
+  lapply(names(li.num), function(my.num.F) {dl.combined.models[[my.num.F]][order(feature)][,paste(feature,collapse=",")]})
+  lapply(names(li.num), function(my.num.F) {dl.enet2.models[[my.num.F]][order(feature)][,paste(feature,collapse=",")]})
+
+  ##
+  ## AUC in training  (in-sample)
+  ##
+  cbind(
+  (lapply(names(li.num), function(my.num.F) dl.combined.result[[my.num.F]][fold=="28wk(preterm+term)",.(Num=my.num.F,predictor,AUC_test,AUC_test_lo,AUC_test_hi)]) %>% rbindlist),
+  (lapply(names(li.num), function(my.num.F) dl.enet.result[[my.num.F]][fold=="28wk(preterm)" & grepl("ENet",methods),.(Num=my.num.F,predictor,AUC_test,AUC_test_lo,AUC_test_hi)]) %>% rbindlist)
+  )
+
+  ##
+  ## AUC in All 
+  ##
+  ga<-paste0(c(12,20,28,36), "wk")
+  term<-c("(preterm)","(term)")
+  my.dataset<-data.table(expand.grid(ga,term))[,Var3:=paste0(Var1,Var2)][Var3!="36wk(preterm)"]$Var3
+  my.dataset<-c("Munchel",my.dataset)
+  
+  dt.compare.auc<-
+  lapply(my.dataset, function(this.dataset){
+    merge(
+          (lapply(2:10, function(my.num) dl.combined.result[[my.num-1]][fold==this.dataset,.(Num=my.num,Predictor=predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)]) %>% rbindlist),
+          (lapply(2:10, function(my.num) dl.enet.result[[my.num-1]][fold==this.dataset & grepl("ENet",methods),.(Num=my.num,Predictor=predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)]) %>% rbindlist),
+    by="Num"
+    )[,dataset:=this.dataset] %>% setcolorder("dataset")
+  }) %>% rbindlist
+
+  dt.compare.auc[dataset=="Munchel"]
+  dt.compare.auc[dataset=="28wk(term)"]
+
+  # Best10
+  dt.compare.auc[order(-AUC_test.x)][1:10]
+  dt.compare.auc[order(-AUC_test.y)][1:10]
+
+  # Bottom10 
+  dt.compare.auc[order(AUC_test.x)][1:10]
+  dt.compare.auc[order(AUC_test.y)][1:10]
+
+  fwrite(dt.compare.auc, file="Tables/Suppl/SI.Table.9.AUC.comparison.combined.vs.preterm.csv")
+```
+
+
+## Suppl Table S10
++ cfRNA changed by GA
+```{r suppl.t.s10}}
+  myRData="RData/dl.DEG.GA.control.term.POPS-2022.GRCh38.88.RData" # child-rmd/cfRNA.term.PE.DEG.GA.POPS-2022.GRCh38.88.Rmd
+  load(myRData)
+
+  dl.DEG.GA[["20wk-12wk"]][BH<0.05] # n=76
+  dl.DEG.GA[["28wk-20wk"]][BH<0.05] # n=64
+  dl.DEG.GA[["36wk-28wk"]][BH<0.05] # n=55
+
+  dt.foo<-
+  merge(
+    dl.DEG.GA[["20wk-12wk"]][BH<0.05][,.(gene_id,log2FoldChange,pvalue)], # n=76
+    dl.DEG.GA[["28wk-20wk"]][BH<0.05][,.(gene_id,log2FoldChange,pvalue)], # n=64
+    by="gene_id",all=T
+    ) %>% setnames(c("gene_id","log2FC(20wk/12wk)","BH(12wk_20wk)","log2FC(28wk/20wk)","BH(20wk_28wk)"))
+
+  fwrite(
+  merge(dt.foo,dl.DEG.GA[["36wk-28wk"]][BH<0.05][,.(gene_id,`log2FC(36wk/28wk)`=log2FoldChange,`BH(28wk_36wk)`=pvalue)],all=T), 
+  file="Tables/Suppl/SI.Table.10.DESeq2.by.GA.csv")
+```
+
+## Suppl Table S11-S12
++ Mixed effect models
+```{r suppl.t.s11}}
+  # Supplementary Table 7 – r2 marginal and conditional for mixed effect models
+  if(F){
+  load("RData/li.models.lmer.RData") # see longitudinal_analysis.Rmd
+  dt.R2<-(lapply(li.models, function(li.model) li.model[["stat"]]) %>% rbindlist)[order(-r2m)]
+  dt.R2[,combined.p:=pchisq(-2 * (log(p.GA) + log(p.GA.sq)), 2 * 2, lower.tail = FALSE)]
+  dt.R2[,BH:=p.adjust(combined.p,"BH")]
+  fwrite(dt.R2[,-"p.intercept"], file="Tables/Suppl/SI.Table.8.lmer.csv")
+  }
+
+  load("RData/li.lmer.RData") # see longitudinal_analysis.Rmd
+  dt.R2<-(lapply(li.lmer, function(li.model) li.model[["stat"]]) %>% rbindlist)[order(-r2m)]
+  dt.R2.GA2<-dt.R2[Model=="GA2"]
+  dt.R2.GA2[,p.combined:=pchisq(-2 * (log(p.GA) + log(p.GA2)), 2 * 2, lower.tail = FALSE)]
+  dt.R2.GA2[,BH.GA:=p.adjust(p.GA,"BH")]
+  dt.R2.GA2[,BH.GA2:=p.adjust(p.GA2,"BH")]
+  dt.R2.GA2[,BH.combined:=p.adjust(p.combined,"BH")]
+  dt.R2.GA2[,BH.anova:=p.adjust(p.anova,"BH")]
+  fwrite(dt.R2.GA2, file="Tables/Suppl/SI.Table.11.lmer.GA2.csv")
+
+  # GA
+  dt.R2.GA<-dt.R2[Model=="GA"]
+  dt.R2.GA[,BH.GA:=p.adjust(p.GA,"BH")]
+  dt.R2.GA[,BH.anova:=p.adjust(p.anova,"BH")]
+  fwrite(dt.R2.GA, file="Tables/Suppl/SI.Table.12.lmer.GA.csv")
 ```
 
 ## Write to Excel 
@@ -1312,6 +1497,167 @@ write.xlsx2(dl.ST[[1]], file="Tables/Suppl/SI.Tables.2.xlsx")
 write.xlsx2(dl.ST[[2]], file="Tables/Suppl/SI.Tables.3.xlsx")
 write.xlsx2(dl.ST[[3]], file="Tables/Suppl/SI.Tables.4.xlsx")
 write.xlsxN(dl.ST[4:6], file="Tables/Suppl/SI.Tables.5-7.xlsx")
+```
+
+# Supplementary Figure
+
+## Suppl Data Figure 2 - combined model 
++ Validated AUC from combined model (preterm+term) vs. preterm dataset only
++ Compare the combined models vs those from the discovery model
+```{r``{r suppl.fig.xx}}
+  load("RData/dl.enet.result.core17.RData") # Validation of ENet models from 28wk, discovery dataset (preterm)
+  load("RData/dl.combined.result.core17.RData") # Validation of ENet models from the combined model (preterm+term)
+
+  ##
+  ## AUC in All 
+  ##
+  ga<-paste0(c(12,20,28,36), "wk")
+  term<-c("(preterm)","(term)")
+  my.dataset<-data.table(expand.grid(ga,term))[,Var3:=paste0(Var1,Var2)][Var3!="36wk(preterm)"]$Var3
+  my.dataset<-c("Munchel",my.dataset)
+  
+  dt.auc.long<-
+  lapply(my.dataset, function(this.dataset){
+    rbind(
+          (lapply(2:10, function(my.num) dl.combined.result[[my.num-1]][fold==this.dataset,.(Num=my.num,Predictor=predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)]) %>% rbindlist)[,Model:="preterm+term (28wk)"]
+          ,
+          (lapply(2:10, function(my.num) dl.enet.result[[my.num-1]][fold==this.dataset & grepl("ENet",methods),.(Num=my.num,Predictor=predictor,AUC_test=AUC_test/100,AUC_test_lo=AUC_test_lo/100,AUC_test_hi=AUC_test_hi/100)]) %>% rbindlist)[,Model:="preterm (28wk)"]
+          
+    )[,Dataset:=this.dataset] 
+  }) %>% rbindlist %>% setcolorder(c("Dataset","Model"))
+
+  dt.auc.long[Dataset!="Munchel",GA:=substr(Dataset,1,4)]
+  dt.auc.long[Dataset!="Munchel",Source:=substr(Dataset,6,nchar(Dataset)-1)][,Source:=ifelse(Source=="preterm","Discovery (preterm)","Validation (term)")]
+  dt.auc.long[Dataset=="Munchel",`:=`(Source="Munchel",GA="36wk")]
+  dt.auc.long$Model<-factor(dt.auc.long$Model, level=c("preterm (28wk)","preterm+term (28wk)"))
+  dt.auc.long$Source<-factor(dt.auc.long$Source, level=c("Discovery (preterm)","Validation (term)","Munchel"))
+
+  xtabs(~Dataset+Model,dt.auc.long)
+  dt.auc.long[Dataset=="Munchel"]
+  dt.auc.long[Dataset=="28wk(preterm)"]
+  dt.auc.long[Dataset=="28wk(term)"]
+  dt.auc.long$Source
+  dt.auc.long$Model
+
+  p.auc.combined<-ggplot(dt.auc.long, aes(Num, AUC_test,group=Model)) + 
+    geom_rect(data = dt.auc.long[Source!="Munchel" & GA=="28wk"],aes(fill = GA),fill="grey90",xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf,alpha = 0.2) +
+    geom_pointrange(aes(col=Model,ymin=AUC_test_lo, ymax=AUC_test_hi),
+                    position=position_dodge(width=0.4),
+                    size=.8,alpha=.8) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    scale_x_continuous(breaks=2:10) +
+    ylab("AUC") + xlab("Number of predictor mRNA in the training models") +
+    scale_color_manual(values=c("grey30",cbPalette2[2])) +
+    facet_grid(Source~GA) + 
+    theme_Publication() +
+    theme(legend.position="top", panel.border = element_rect(colour = "black"))
+
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Data.Fig.combined.AUC.pdf", width=14, height=10, title="Suppl Fig: AUC from the combined model vs preterm model")
+  p.auc.combined
+  dev.off()
+
+  p.auc.combined.A<-ggplot(dt.auc.long[Source!="Munchel"], aes(Num, AUC_test,group=Model)) + 
+    geom_rect(data = dt.auc.long[Source!="Munchel" & GA=="28wk"],aes(fill = GA),fill="grey90",xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf,alpha = 0.2) +
+    geom_pointrange(aes(col=Model,ymin=AUC_test_lo, ymax=AUC_test_hi),
+                    position=position_dodge(width=0.4),
+                    size=.8,alpha=.8) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    scale_x_continuous(breaks=2:10) +
+    labs(y="AUC", x="Number of predictor mRNA in the training model") +
+    scale_color_manual(values=c("grey30",cbPalette2[2])) +
+    facet_grid(Source~GA) + 
+    theme_Publication() +
+    theme(legend.position="", panel.border = element_rect(colour = "black"))
+
+  p.auc.combined.B<-ggplot(dt.auc.long[Source=="Munchel"], aes(Num, AUC_test,group=Model)) + 
+    geom_pointrange(aes(col=Model,ymin=AUC_test_lo, ymax=AUC_test_hi),
+                    position=position_dodge(width=0.4),
+                    size=.8,alpha=.8) +
+    scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
+    scale_x_continuous(breaks=2:10) +
+    labs(y="AUC", x="Number of predictor mRNA in the training model                                     ") +
+    scale_color_manual(values=c("grey30",cbPalette2[2])) +
+    facet_grid(Source~.) + 
+    theme_Publication() +
+    theme(legend.position="left", 
+          panel.border = element_rect(colour = "black"),
+          plot.margin=margin(1,-15,7,0)
+    )
+
+  p.auc.bottom<-cowplot::plot_grid(NULL,p.auc.combined.B, nrow=1,labels=c("","B"),label_size=27,rel_widths=c(.87,1))
+
+  pdf(file="Figures/Suppl/cfRNA.Suppl.Data.Fig.combined.AUC.AB.pdf", width=12, height=10, title="Suppl Fig: AUC from the combined model vs preterm model")
+  cowplot::plot_grid(p.auc.combined.A, p.auc.bottom,ncol=1, labels=c("A",""),label_size=27,rel_heights=c(2,1), align="v", axis="lr")
+  dev.off()
+
+  # now add the title
+  x.label<- cowplot::ggdraw() +
+    cowplot::draw_label(
+    "Number of predictor mRNA in the training models",
+    fontface = 'bold',
+    x = 0,
+    hjust = 0
+  ) +
+  theme_Publication() #+
+  #theme(
+  #  # add margin on the left of the drawing canvas,
+  #  # so title is aligned with left edge of first plot
+  #  plot.margin = margin(0, 0, 0, 7)
+  #)
+
+
+
+```
+
+
+
+## Suppl Data Figure - longitudinal analysis via `lme4`
++ See longitudinal_analysis.Rmd
+
+```{r suppl.data.fig1, eval=F}
+  library(grid)
+  library(gridExtra)
+
+  # Supplementary Data Figure - logCPM by GA via mixed effect model 
+  load("RData/li.lmer.RData") # see longitudinal_analysis.Rmd
+  load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
+
+  dt.pops.sample<-fread("data/dt.samples.csv") # n=755
+  dt.foo<-data.table(read_excel("data/cfRNA_samples_GA_exact.xlsx"))[,.(SampleID,GAwk=GA_exact)] # from Ulla
+  dt.pops.sample<-merge(dt.pops.sample, dt.foo)
+  dt.logCPM<-merge(dt.cpmZ.term[Condition=="Control"],dt.pops.sample[,.(SampleID,POPSID,GAwk)],by="SampleID")
+
+  dt.logCPM[,rGAwk:=(GAwk-4)/8] # to make 12wk(1), 20wk(2), 28wk(3), and 36wk(4)
+  dl.logCPM<-split(dt.logCPM, dt.logCPM$geneName)
+
+  li.plots<-lapply(dl.logCPM[dt.R2[order(-r2m)][["gene"]]], function(dt.foo){
+      my.gene<-unique(dt.foo[["geneName"]])
+      message(my.gene)
+
+      r2m<-li.models[[my.gene]][["stat"]][["r2m"]] %>% round(3)
+      r2c<-li.models[[my.gene]][["stat"]][["r2c"]] %>% round(3)
+      my.title=paste0(my.gene," (r2m:",r2m,", r2c:",r2c,")")
+  
+      ggplot(dt.foo, aes(x = GAwk, y = logCPM)) +
+      geom_line(aes(group = POPSID), linewidth = .5, col="grey80",alpha=.7) +
+      geom_point(aes(color = as.factor(GA)), size=2, alpha=.7) +
+      labs(subtitle=my.title, x = "Gestational Age (weeks)", color = "GA (week)") +
+      theme(legend.position = "top") +
+      geom_ribbon(data=li.models[[my.gene]][["predict"]], aes(ymin=conf.low, ymax=conf.high), alpha=0.6, fill = "grey40") +
+      geom_line(data=li.models[[my.gene]][["predict"]], linewidth=1.5, col="blue",alpha=0.8) + 
+      scale_x_continuous(breaks=c(12,20,28,36)) +
+      scale_color_manual(values=cbPalette2) +
+      theme_Publication() +
+      theme(legend.position="none")
+  })
+  li.plots %>% length
+
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.top100.pdf'))
+  pdf(file=file.name1, width=14, height=9,title="Longitudinal analysis via mixed effect model")
+  grid.text(label=paste0("Longitudinal analysis of cfRNA abundance\nfrom maternal blood\n(Top 100 genes by R2)"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.7,just="center")
+  grid.text(label=paste("Sungsam Gong\n<ssg29 @ cam.ac.uk>",Sys.Date()),gp=gpar(fontsize=30,fontface="bold"),x=0.8,y=.2,just="right")
+  gridExtra::marrangeGrob(li.plots[dt.R2[order(-r2m)][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
 ```
 
 # Discussions
@@ -1356,14 +1702,86 @@ echo -e "sample,file1,file2" > data/runs.csv;
 paste -d","  <(for i in `cat data/FASTQ.list.r1.txt`; do FQ=`echo $i| cut -d"," -f2 | cut -d'/' -f7`; ID1=`echo $i | cut -d"," -f1`; echo -e "$ID1,./$FQ"; done) <(for i in `cat data/FASTQ.list.r2.txt`; do FQ=`echo $i| cut -d"," -f2 | cut -d'/' -f7`; ID1=`echo $i | cut -d"," -f1`; echo -e "$ID1,./$FQ"; done) | grep -v "PPC-" >> data/runs.csv
 ```
 
+# Reviewer 2
+
+## Correlation between LEP PAPPA2 
+```{r}
+  load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData") # dt.cpmZ (preterm)
+  load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
+  load("RData/dt.cpmZ.munchel.RData") # dt.cpmZ.munchel (Munchel)
+
+  dt.foo<-dt.cpmZ[geneName %in% c("LEP","PAPPA2")] %>% dcast.data.table(SampleID+GA+Condition~geneName, value.var="logCPMZ")
+  xtabs(~Condition+GA,dt.foo)
+  split(dt.foo, dt.foo$GA)[1:3]
+  lapply(split(dt.foo, dt.foo$GA)[1:3], function(DT) DT[,.(Cor=cor(LEP,PAPPA2),Pval=cor.test(LEP,PAPPA2)$p.value)])
+
+  #  0.5226683 1.50778e-06
+  #  0.5588601 2.281226e-07
+  #  0.6285384 3.393297e-09
+
+  dt.cpmZ
+
+  p.corr<-
+  ggplot(dt.foo, aes(LEP,PAPPA2)) +
+    geom_point(size=2,shape=21,alpha=.8) +
+    facet_wrap(~GA) +
+    theme_Publication()
+
+  cairo_pdf(file="Figures/Suppl/cfRNA.Suppl.LEP.PAPPA2.cor.pdf", width=10,height=4, onefile=T)
+  p.corr
+  dev.off()
+
+  #
+  li.mat<-lapply(split(dt.cpmZ, dt.cpmZ$GA), function(DT){
+    DT %>% dcast.data.table(SampleID~geneName, value.var="logCPMZ") %>% as.matrix(rownames="SampleID")
+  })
+  li.mat[[1]][1:5,1:5]
+  cor(li.mat[[1]])["LEP","PAPPA2"]
+
+  ##
+  ##
+  ##
+  #dt.cpmZ[geneName %in% c("LEP","PAPPA2")] %>% dcast.data.table(SampleID+GA+Condition~geneName, value.var="logCPMZ")
+  dt.lep.pappa2<-rbind(
+                       (dt.cpmZ[geneName %in% c("LEP","PAPPA2")] %>% dcast.data.table(SampleID+GA+Condition~geneName, value.var="logCPMZ"))[,Source:="Discovery"],
+                       (dt.cpmZ.term[geneName %in% c("LEP","PAPPA2")] %>% dcast.data.table(SampleID+GA+Condition~geneName, value.var="logCPMZ"))[,Source:="Validation"],
+                       (dt.cpmZ.munchel[geneName %in% c("LEP","PAPPA2")] %>% dcast.data.table(SampleID+Condition~geneName, value.var="logCPMZ"))[,Source:="Munchel"]
+     ,fill=T)
+  dt.lep.pappa2[,.N,.(Source,GA)]
+
+  dt.lep.pappa2[,Dataset:=ifelse(is.na(GA),Source,paste0(Source,"(",GA,")"))]
+  xtabs(~Dataset,dt.lep.pappa2)
+  xtabs(~GA+Source,dt.lep.pappa2)
+
+  dt.lep.pappa2[,.(Cor=cor(LEP,PAPPA2),Pval=cor.test(LEP,PAPPA2)$p.value),.(Source,GA)][order(Source,GA)] 
+  dt.lep.pappa2[Condition=="Case",.(Cor=cor(LEP,PAPPA2),Pval=cor.test(LEP,PAPPA2)$p.value),.(Source,GA)][order(Source,GA)] 
+
+  p1<-
+  ggplot(dt.lep.pappa2[Source!="Munchel"], aes(LEP,PAPPA2)) +
+    geom_rect(data = dt.lep.pappa2[Source=="Discovery" & GA=="28wk"],aes(fill = GA),fill="grey80",xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf,alpha = 0.2) +
+    geom_point(aes(col=Condition),size=3,shape=21,stroke=1.1,alpha=.8) +
+    facet_grid(Source~GA) + 
+    ggsci::scale_color_jama() +
+    labs(x="Z-score (LEP)",y="Z-score (PAPPA2)") +
+    theme_Publication() +theme (panel.border = element_rect(colour = "black"),legend.position="top")
+
+  p2<-
+  ggplot(dt.lep.pappa2[Source=="Munchel"], aes(LEP,PAPPA2)) +
+    geom_point(aes(col=Condition),size=3,shape=21,stroke=1.1,alpha=.8) +
+    facet_grid(Source~.) + 
+    ggsci::scale_color_jama() +
+    labs(x="",y="") +
+    theme_Publication() +theme (panel.border = element_rect(colour = "black"),legend.position="")
+
+  p2.right<-cowplot::plot_grid(NULL,p2,labels=c("","B"),ncol=1,label_size=27,rel_heights=c(1,1))
+  p.corr2<-cowplot::plot_grid(p1, p2.right, labels=c("A",""),label_size=27,rel_widths=c(2.8,1))
+
+  cairo_pdf(file="Figures/Suppl/cfRNA.Suppl.LEP.PAPPA2.cor2.pdf", width=12,height=6, onefile=T)
+  p.corr2
+  dev.off()
 
 
-
-
-
-
-
-
+```
 
 
 # Old figures - DO NOT USE

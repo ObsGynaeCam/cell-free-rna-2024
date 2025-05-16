@@ -6,7 +6,7 @@ It contains the `R` and other relevant codes (*e.g.* `bash` or `graphviz`) that 
 
 The aim of this study was to identify cell-free RNA (cfRNA) transcripts circulating in the maternal blood that are predictive of pregnancies in combination of fetal growth restriction (FGR) and preeclampsia (PE). 
 
-![Schematic diagrams showing the current study design](static/figure/cfRNA.Fig1.png){#fig-study-design}
+![Schematic diagrams showing the current study design](static/figure/cfRNA.Fig1r.png){#fig-study-design}
 
 The maternal blood was drawn at around 12, 20, 28 and 36 weeks of gestational age (wkGA) and 2ml of plasma from each of the blood sample was used to extract RNA. A total of **751** maternal plasma samples from **195** pregnant women (**39** cases; **156** non-cases) were collected and samples from a case subject at a given gestational age were analysed in the same batch as the matched controls which were also obtained at the same gestational age.
 

@@ -7,7 +7,7 @@ Below shows the full sample information:
 
 library(DT)
 dt.samples<-fread("static/R/data/dt.samples.csv")
-DT::datatable(dt.samples)
+dt.samples %>% DT::datatable(extensions = 'Buttons',options = list(dom="Bfrtip", buttons = c('copy', 'csv', 'excel')))
 ```
 
 Pleae note that:
@@ -16,6 +16,13 @@ Pleae note that:
 * GS-59-CX is data from the same plasma sample as GS-59-CX-b. Both failed QC
 * GS-179-HQ is data from the same plasma sample as GS-179-HQ-b. Only GS-179-HQ-b passed QC
 
+Now, update the `dt.samples` by dropping those samples failed in QC:
+```{r discovery-preterm-samples-qc}
+#| label: lst-term-ctl-samples-qc
+#| lst-label: lst-term-ctl-samples-qc
+#| lst-cap: "Update the sample data.table"
+dt.samples<-dt.samples[!SampleID %in% c("GS-B-374-UW","GS-B-374-UW-b","GS-59-CX","GS-59-CX-b","GS-179-HQ")]
+```
 
 ## Discovery Cohort (preterm dataset)
 ```{r discovery-preterm-samples}

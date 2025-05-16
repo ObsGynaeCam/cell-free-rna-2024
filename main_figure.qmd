@@ -4,9 +4,9 @@ This chapter demonstrates the `R` and the `dot` codes that make the main figures
 Making the supplementary text figures are shown in @sec-suppl-figure.
 
 ## Figure 1 {#sec-fig1}
-![Figure 1 in the paper](static/figure/cfRNA.Fig1.png){#fig-fig1}
+![Figure 1 in the paper](static/figure/cfRNA.Fig1r.png){#fig-fig1}
 
-This figure was made using the [Biorender](http://www.biorender.com), except some inlet figures (shown further below, e.g. [@sec-fig2; @sec-fig3; @sec-fig4; @sec-fig5]) made by `R`, and workflow diagrams (e.g. [@fig-gv-quant; @fig-gv-discovery; @fig-gv-validation; @fig-gv-munchel]) written in [DOT (Graphic Description Language)](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) such as [Graphviz](https://graphviz.org/), where you can see some example codes shown below.
+[Figure 1](https://BioRender.com/bwfj19q) was made using the [Biorender](http://www.biorender.com), except some inlet figures (shown further below, e.g. [@sec-fig2; @sec-fig3; @sec-fig4; @sec-fig5]) made by `R`, and workflow diagrams (e.g. [@fig-gv-quant; @fig-gv-discovery; @fig-gv-validation; @fig-gv-munchel]) written in [DOT (Graphic Description Language)](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) such as [Graphviz](https://graphviz.org/), where you can see some example codes shown below.
 
 ### The `dot` code in `Figure 1A` {#sec-fig1a}
 ```{.dot filename="static/dot/cfRNA_quant_workflow2.quant.gv"}
@@ -477,10 +477,11 @@ This figure was made using the [Biorender](http://www.biorender.com), except som
 ```
 
 ## Figure 5 {#sec-fig5}
-![Figure 5 in the paper](static/figure/cfRNA.Fig5.png){#fig-fig5}
+![Figure 5 in the paper](static/figure/cfRNA.Fig5r.png){#fig-fig5}
 
+### Figure 5A {#sec-fig5a}
 ```{r}
-#| label: fig-5
+#| label: fig-5a
 #| eval: false
   load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData") # dt.cpmZ (preterm)
   load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
@@ -555,3 +556,42 @@ This figure was made using the [Biorender](http://www.biorender.com), except som
   dev.off()
 ```
 
+### Figure 5B {#sec-fig5b}
+```{r }
+#| label: fig-5b
+#| eval: false
+  my.genes<-c("ALPP", "C2orf72", "CAPN6", "CSHL1", "CYP11A1", "HSD3B1", "LINC00967", "MUC15", "PAPPA", "RAB3B", "SVEP1", "TEAD3", "TFAP2A", "TINCR", "TMEM54","VGLL3") # n=16
+
+  dt.foo<-dl.logCPM[my.genes] %>% rbindlist %>% setnames("geneName","gene")
+  dt.bar<-lapply(my.genes, function(my.gene) data.table(gene=my.gene,li.lmer[[my.gene]][["predict"]])) %>% rbindlist
+
+  my.title.y<-latex2exp::TeX(r"($\textbf{log_2 CPM}$)")
+
+  p5.lmer<-
+      ggplot(dt.foo, aes(x = GAwk, y = logCPM)) +
+      geom_line(aes(group = POPSID), linewidth = .5, col="grey80",alpha=.7) +
+      geom_point(aes(color = as.factor(GA)), size=2, alpha=.5) +
+      labs(x = "Gestational Age (weeks)", y= my.title.y) +
+      theme(legend.position = "top") +
+      geom_ribbon(data=dt.bar, aes(ymin=conf.low, ymax=conf.high), alpha=0.6, fill = "grey40") +
+      geom_line(data=dt.bar, linewidth=1.5, col="blue",alpha=0.8) +
+      scale_x_continuous(breaks=c(12,20,28,36)) +
+      scale_color_manual(values=cbPalette2) +
+      facet_wrap(~gene, nrow=4, scales="free_y") +
+      theme_Publication() +
+      theme(legend.position="none")
+
+  #
+  pdf(file="Figures/cfRNA.Fig5B.lmer.pdf", width=11, height=11, title="Fig5: longitudinal analysis")
+  p5.lmer
+  dev.off()
+```
+
+### Figure 5A-B {#sec-fig5ab}
+```{r }
+#| label: fig-5ab
+#| eval: false
+  pdf(file="Figures/cfRNA.Fig5.pdf", width=11, height=16, title="Fig5: LEP, PAPPA2 and longitudinal analysis")
+  cowplot::plot_grid(p5.lep.pappa2.sig, p5.lmer, rel_widths=c(1,1.2),labels="AUTO", ncol=1, label_size=27, align="v", axis="l")
+  dev.off()
+```

@@ -1,0 +1,96 @@
+# The combined model
+
+Here we present the predictive performance of the 2- to 10-cfRNA models trained in the 28wkGA samples from the combined dataset from discovery and validation cohort – we called these models as “**combined models**” or preterm+term models because _discovery cohort_ is from the preterm delivery and the _validation cohort_ from the term delivery. 
+
+Then, we compare their predictive performances to those from the 2- to 10-cfRNA models trained in the 28wkGA samples of discovery cohort – we call these models as **the original models (or preterm models)** as mentioned in the main text of the paper (see @fig-fig4). The 2- to 10-cfRNAs in the combined and the original models were chosen by **Elastic net** which was chosen as the best feature selection method from the 5-fold cross-validation, which is explained in @sec-5fold-cv and @fig-fig3 A. 
+
+Firstly, we need to combine the 28wkGA dataset from both discovery and validation cohort. You may need to refer to @lst-data-setup.
+
+```{r }
+#| label: train-combined-model
+#| eval: false
+#| code-summary: Code to train the combined model via Elastic Net
+
+# combine the 28wkGA from discovery (preterm) and validation (term) dataset
+x<-rbind(li.mat[["train"]][["28wk"]],li.mat[["test"]][["28wk"]])
+mat.tr<-x # NB, the training dataset is now the combined dataset
+
+li.num<-2:10 %>% as.list
+names(li.num)=paste0("F",2:10)
+
+# Featue selection via ElasticNet only 
+dl.combined.models<-
+  lapply(li.num, function(my.num){
+    message(paste("Num:",my.num,"Method: ENET"))
+    dt.enet<-get_enet_coef(x=x, "combined", my.num=my.num)
+    dt.enet[method=="ENet2"]
+  })
+save(dl.combined.models, file="RData/dl.combined.models.core17.RData")
+```
+
+```{r}
+#| label: val-combined-model
+#| eval: false
+#| code-summary: Code to validate the combined model in Discovery cohort, Validation cohort, and Munchel
+
+## Combined models validated on POPS and & Munchel
+dl.combined.result<-lapply(dl.combined.models, function(dt.model){
+  dt.final.model<-dt.model[order(feature)][,.(.N,features=paste(feature,collapse=",")),method][order(features)]
+  dt.final<-dt.final.model[,.(.N,methods=paste(method,collapse=',')),features]
+
+  #######################################################################
+  # get LPOCV/AUC from the preterm dataset (NB, 28wk-preterm: training) #
+  #######################################################################
+  dt.final.result<-lapply(dt.final$methods, function(my.methods){
+                        ############################################
+                        # fit the model using the training dataset #
+                        ############################################
+                        my.feature<-dt.final[methods==my.methods]$features %>% strsplit(",") %>% unlist
+                        df.mat.tr<-mat.tr[,c(my.feature,'y')] %>% as.data.frame  # training set
+                        my.model<-glm(y~. , data = df.mat.tr, family = "binomial")
+
+                        ## preterm+term (NB, 28wk: dataset where the model was built)
+                        dt.foo0<-lapply(c("12wk","20wk","28wk"), function(my.GA){
+                          message(paste("preterm+term",my.methods,my.GA,sep=":"))
+                          x<-rbind(li.mat[["train"]][[my.GA]], li.mat[["test"]][[my.GA]])
+                          my.fold<-paste0(my.GA,"(preterm+term)")
+                          cbind(`methods`=my.methods,
+                                get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                          )
+                        }) %>% rbindlist
+
+                        ## preterm (NB, 28wk: dataset where the model was built)
+                        dt.foo1<-lapply(c("12wk","20wk","28wk"), function(my.GA){
+                          message(paste("preterm",my.methods,my.GA,sep=":"))
+                          x<-li.mat[["train"]][[my.GA]]
+                          my.fold<-paste0(my.GA,"(preterm)")
+                          cbind(`methods`=my.methods,
+                                get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                          )
+                        }) %>% rbindlist
+
+                        ## term (validation)
+                        dt.foo2<-lapply(c("12wk","20wk","28wk","36wk"), function(my.GA){
+                          message(paste("term",my.methods,my.GA,sep=":"))
+                          x<-li.mat[["test"]][[my.GA]]
+                          my.fold<-paste0(my.GA,"(term)")
+                          cbind(`methods`=my.methods,
+                                get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                          )
+                        }) %>% rbindlist
+                        
+                        ## Munchel 
+                        message(paste("Munchel",my.methods,sep=":"))
+                        x<-li.mat[["munchel"]]
+                        my.fold<-"Munchel"
+                        dt.foo3<-cbind(`methods`=my.methods,
+                                get_cv_glm2(x=x,my.fold=my.fold,my.model=my.model,my.feature=my.feature)
+                        )
+
+                        rbind(dt.foo0, dt.foo1,dt.foo2,dt.foo3)
+                    }) %>% rbindlist
+  dt.final.result<-dt.final.result[order(fold,-AUC_test)]
+  dt.final.result
+}) # end of dl.enet.models
+save(dl.combined.result, file="RData/dl.combined.result.core17.RData")
+```

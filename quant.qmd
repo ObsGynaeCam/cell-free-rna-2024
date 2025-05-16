@@ -1,4 +1,4 @@
-# RNA-seq data processing {#sec-mtd-rna-seq}
+# RNA-seq Data Processing {#sec-mtd-rna-seq}
 
 ## Transcript quantification {#sec-mtd-rna-seq-quant}
 

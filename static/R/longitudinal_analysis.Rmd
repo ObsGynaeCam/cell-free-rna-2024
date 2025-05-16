@@ -1,0 +1,466 @@
+---
+title: "Longitudinal analysis of cfRNA in the maternal circulation "
+subtitle: "Changes of cfRNA by gestational age"
+author: |
+  | [Sung Gong](https://www.obgyn.cam.ac.uk/staff/research-staff/sung-gong/){target="_blank"}
+institute: |
+  | Department of Obstetrics & Gynaecology
+  | University of Cambridge
+#date: "`r Sys.time()`"
+date: "2025-04-22"
+output: 
+    binb::metropolis:
+        slide_level: 2 
+        toc: false
+        fig_caption: true
+        keep_tex: false
+fontsize: 10pt
+classoption: aspectratio=149
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{xcolor}
+tables: true
+params:
+    disease: PE
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+  knitr::opts_chunk$set(cache=TRUE, echo = FALSE, message=FALSE, warning=FALSE) # with caching
+
+  library(magrittr)
+  library(lme4)
+  library(robustlmm)
+  library(MuMIn)
+  #install.packages("MuMIn") # v1.48.11 (R>4.4.0)
+  #install.packages("https://cran.r-project.org/src/contrib/Archive/MuMIn/MuMIn_1.48.4.tar.gz", type="source", repos=NULL)
+
+  source("libs/local.R") # global settings & functions 
+  source("libs/graphic.R") # Sung's graphic function
+
+  get_r2<- function(model) {
+    # Extract fixed effects and their design matrix
+    fixed_effects <- fixef(model)
+    design_matrix <- getME(model, "X")
+
+    # Compute variance of fixed effects
+    mu <- design_matrix %*% fixed_effects
+    varF <- var(as.vector(mu))
+
+    # Extract random effects variance
+    varComps <- VarCorr(model)
+    varR <- sum(sapply(varComps, function(vc) {
+      if (is.matrix(vc)) {
+        return(sum(diag(vc)))
+      } else {
+        return(vc[1]^2)
+      }
+    }))
+
+    # Extract residual variance
+    varRes <- sigma(model)^2
+
+    # Marginal R-squared: variance explained by fixed effects
+    R2_marginal <- varF / (varF + varR + varRes)
+    # Conditional R-squared: variance explained by both fixed and random effects
+    R2_conditional <- (varF + varR) / (varF + varR + varRes)
+
+    return(c(`R2m`= R2_marginal, `R2c`= R2_conditional))
+  }
+```
+
+## Longitudinal Analysis
++ Healthy samples only.
++ 12wk, 20wk, 28wk, and 36wk dataset from term dataset (i.e. Validation dataset).
++ Robust estimation of linear mixed-effect models  via `robustlmm` R package.
+
+## Set up dataset of transcript abundancess by GA
+```{r diff_case_ga_setup1}
+  ###############
+  # Sample Info #
+  ###############
+  dt.pops.sample<-fread("data/dt.samples.csv") # n=755
+  dt.pops.sample[,.N,POPSID][N>4]
+  dt.pops.sample[grepl("-b$",SampleID)] %>% dcast.data.table(POPSID~GA, value.var="SampleID")
+  dt.pops.sample[,.(POPSID,SampleID,GA)]
+  #fwrite(dt.pops.sample[,.(POPSID,SampleID,GA)], file="data/cfRNA_samples_GA.csv") # sent to Ulla
+
+  dt.pops.sample<-dt.pops.sample[Cohort=="term" & Condition=="Control" & !SampleID %in% c("GS-B-374-UW","GS-B-374-UW-b")] # remove these two samples as both of them flagged as "failed" by illumina (it is a 28wk control sample) # n=383
+  dt.pops.sample[,.N,POPSID][N>4]
+  dt.pops.sample[,.N,POPSID][N<4]
+  dt.pops.sample[POPSID==1953] %>% dcast.data.table(POPSID~GA, value.var="SampleID")
+  dt.pops.sample[,.(POPSID,SampleID,GA)] # n=383
+  dt.pops.sample[,.N,.(POPSID)] # n=96
+
+  dt.foo<-data.table(read_excel("data/cfRNA_samples_GA_exact.xlsx"))[,.(SampleID,GAwk=GA_exact)] # from Ulla
+  dt.pops.sample<-merge(dt.pops.sample, dt.foo) # n=383
+  dt.pops.sample$POPSID<-factor(dt.pops.sample$POPSID)
+
+  #####################
+  ## Based on logCPM ##
+  #####################
+  load("RData/dt.cpmZ.term.POPS-2022.GRCh38.88.RData") # dt.cpmZ.term (term)
+
+  xtabs(~GA+Condition,dt.cpmZ.term)
+  dt.cpmZ.term[,.(.N,N_sample=length(unique(SampleID)),N_gene=length(unique(geneName))),.(GA,Condition)]
+
+```
+
+## Build the models using quaratic term (i.e. GA^2) and linear term (GA)
++ Linear and non-linear models via `lme4::lmer`
++ Linear and non-linear models via `robustlmm::rlmer`
+```{r rlmer_quaratic1}
+  dt.logCPM<-merge(
+                dt.cpmZ.term[Condition=="Control"],
+                dt.pops.sample[,.(SampleID,POPSID,GAwk)],
+                by="SampleID"
+                )
+
+  dt.logCPM$GAwk %>% summary
+  dt.logCPM[,rGAwk:=(GAwk-4)/8] # to make 12wk(1), 20wk(2), 28wk(3), and 36wk(4)
+  dt.logCPM$rGAwk %>% summary
+  dl.logCPM<-split(dt.logCPM, dt.logCPM$geneName)
+  dl.logCPM %>% length # n=15150
+  rm(dt.logCPM)
+
+  if(file.exists("RData/li.lmer.RData")){
+    load("RData/li.lmer.RData")
+  }else{
+    #
+    li.lmer<-
+    lapply(dl.logCPM, function(dt.foo){
+      my.gene<-unique(dt.foo[["geneName"]])
+      message(my.gene)
+
+      if(F){
+        ## 1a. Mixed Effect Model via lmer4 (non-linear)
+        system.time(my.lmer <- lme4::lmer(logCPM ~ 1 + rGAwk + I(rGAwk^2) + (1 | POPSID), data = dt.foo))
+        #my.lmer %>% summary
+        my.r2<-MuMIn::r.squaredGLMM(my.lmer)
+
+        dt.lmer.predict <- 
+          my.lmer %>% ggeffects::ggpredict(terms = list(rGAwk= seq(min(dt.foo$rGAwk), max(dt.foo$rGAwk), length = 20)), verbose = FALSE) %>% data.table %>% setnames("x","rGAwk") %>% setnames("predicted","logCPM")
+        dt.lmer.predict[,GAwk:=rGAwk*8 +4][,group:=NULL][,rGAwk:=NULL] %>% setcolorder("GAwk")
+
+        ## 2a. Robust Mixed Effect Model via robustlmm (non-linear)
+        system.time(my.rlmer <- robustlmm::rlmer(logCPM ~ 1 + rGAwk + I(rGAwk^2) + (1 | POPSID), data = dt.foo))
+        my.rlmer %>% summary
+        my.r2<-get_r2(my.rlmer) %>% t 
+
+        if(F){
+          var.fix <- insight::get_variance_fixed(my.rlmer)
+          var.ran <- insight::get_variance_random(my.rlmer)
+          var.res <- insight::get_variance_residual(my.rlmer)
+          (R2m = var.fix/(var.fix+var.ran+var.res))
+          #var.fixed
+          (R2c = (var.fix+var.ran)/(var.fix+var.ran+var.res))
+
+          robustlmm::getME(my.rlmer, "w_e") # robust weight with the observation
+          robustlmm::getME(my.rlmer, "w_b") # robust weight with the random effect 
+        }
+
+        ## 2b. Robust Mixed Effect Model via robustlmm (linear)
+        my.rlmer.linear <- rlmer(logCPM ~ 1 + rGAwk + (1 | POPSID), data = dt.foo)
+        my.rlmer.linear  %>% summary
+      }
+
+      #####################################################
+      ## 1a. Mixed Effect Model via lmerTest (non-linear) #
+      #####################################################
+      my.lmer.GA2 <- lmerTest::lmer(logCPM ~ 1 + rGAwk + I(rGAwk^2) + (1 | POPSID), data = dt.foo)
+      dt.predict.GA2<- 
+        my.lmer.GA2 %>% ggeffects::ggpredict(terms = list(rGAwk= seq(min(dt.foo$rGAwk), max(dt.foo$rGAwk), length = 20)), verbose = FALSE) %>% data.table %>% setnames("x","rGAwk") %>% setnames("predicted","logCPM")
+      dt.predict.GA2[,GAwk:=rGAwk*8 +4][,group:=NULL][,rGAwk:=NULL] %>% setcolorder("GAwk")
+
+      mat.coef<-lmerTest:::get_coefmat(my.lmer.GA2)
+      my.coeff.GA2<-mat.coef[2:3,1,drop=F] %>% t
+      my.pval.GA2<-mat.coef[2:3,5,drop=F] %>% t
+      my.r2.GA2<-MuMIn::r.squaredGLMM(my.lmer.GA2)
+
+      dt.lmer.GA2<-data.table(my.gene,my.r2.GA2,my.coeff.GA2, my.pval.GA2) %>% setnames(c("gene","r2m","r2c","coef.GA","coef.GA2","p.GA","p.GA2"))
+      #list(`stat`=dt.lmer.GA2,`predict`=dt.predict.GA2)
+
+      ##############################################
+      ## 1b. Mixed Effect Model via lmer4 (linear) #
+      ##############################################
+      my.lmer.GA <- lme4::lmer(logCPM ~ 1 + rGAwk + (1 | POPSID), data = dt.foo)
+      dt.predict.GA <- 
+        my.lmer.GA %>% ggeffects::ggpredict(terms = list(rGAwk= seq(min(dt.foo$rGAwk), max(dt.foo$rGAwk), length = 20)), verbose = FALSE) %>% data.table %>% setnames("x","rGAwk") %>% setnames("predicted","logCPM")
+      dt.predict.GA[,GAwk:=rGAwk*8 +4][,group:=NULL][,rGAwk:=NULL] %>% setcolorder("GAwk")
+
+      mat.coef<-lmerTest:::get_coefmat(my.lmer.GA)
+      my.coeff.GA<-mat.coef[2:2,1,drop=F] %>% t
+      my.pval.GA<-mat.coef[2:2,5,drop=F] %>% t
+      my.r2.GA<-MuMIn::r.squaredGLMM(my.lmer.GA)
+
+      dt.lmer.GA<-data.table(my.gene,my.r2.GA,my.coeff.GA,NA,my.pval.GA,NA) %>% setnames(c("gene","r2m","r2c","coef.GA","coef.GA2","p.GA","p.GA2"))
+      #list(`stat`=dt.lmer.GA,`predict`=dt.predict.GA)
+
+      ###############
+      ## Anova test #
+      ###############
+      my.anova<-anova(my.lmer.GA2, my.lmer.GA)
+
+      ## Summary
+      dt.lmer<-
+        rbind(
+        cbind("Model"="GA2",dt.lmer.GA2),
+        cbind("Model"="GA",dt.lmer.GA)
+        )[,p.anova:=my.anova[["Pr(>Chisq)"]][2]] %>% setcolorder("gene")
+
+      list(`stat`=dt.lmer, `predict`=dt.predict.GA2, `predict.GA`=dt.predict.GA)
+    })
+    save(li.lmer, file="RData/li.lmer.RData")
+  }
+```
+
+## Strength of association via R^2
+```{r r2_all1}
+  li.lmer %>% length
+
+  dt.R2<-
+    (lapply(li.lmer, function(li.model) li.model[["stat"]]) %>% rbindlist)[order(-r2m)]
+  dt.R2[,.N,gene][N<2]
+
+  dt.R2[gene=="CSHL1"]
+
+  ## GA2
+  dt.R2.GA2<-dt.R2[Model=="GA2"]
+  dt.R2.GA2[,p.combined:=pchisq(-2 * (log(p.GA) + log(p.GA2)), 2 * 2, lower.tail = FALSE)]
+  dt.R2.GA2[,BH.GA:=p.adjust(p.GA,"BH")]
+  dt.R2.GA2[,BH.GA2:=p.adjust(p.GA2,"BH")]
+  dt.R2.GA2[,BH.combined:=p.adjust(p.combined,"BH")]
+  dt.R2.GA2[,BH.anova:=p.adjust(p.anova,"BH")]
+  fwrite(dt.R2.GA2, file="Tables/Suppl/SI.Table.10.lmer.GA2.csv")
+
+  # GA
+  dt.R2.GA<-dt.R2[Model=="GA"]
+  dt.R2.GA[,BH.GA:=p.adjust(p.GA,"BH")]
+  dt.R2.GA[,BH.anova:=p.adjust(p.anova,"BH")]
+  fwrite(dt.R2.GA, file="Tables/Suppl/SI.Table.11.lmer.GA.csv")
+
+  if(F){
+    ##############
+    ## GA2 model #
+    ##############
+    dt.R2.GA2[order(coef.GA)]
+    dt.R2.GA2[order(coef.GA2)]
+
+    dt.R2.GA2[order(-r2m)]
+    dt.R2.GA2[order(-r2c)]
+
+    dt.R2.GA2[order(-r2m)][1:100][coef.GA<0]
+
+    dt.R2.GA2[order(p.GA)]
+    dt.R2.GA2[order(p.GA2)]
+    dt.R2.GA2[order(p.combined)]
+
+    dt.R2.GA2[BH.GA<0.05][order(p.GA)]
+    dt.R2.GA2[BH.GA2<0.05][order(p.GA2)]
+    dt.R2.GA2[BH.combined<0.05][order(p.combined)]#[coef.GA<0]
+
+    dt.R2.GA2[BH.combined<0.05][order(p.combined)][coef.GA<0]
+
+
+    dt.R2.GA2[r2m>=0.5][order(-r2m)]
+    dt.R2.GA2[r2c>=0.5][order(-r2c)]#[1:50,1:5]
+
+    dt.R2.GA2[gene %in% c("LEP","PAPPA2","TTPAL")]
+
+    #############
+    ## GA model #
+    #############
+    dt.R2.GA[order(-r2m)][1:10]
+
+    dt.R2.GA[order(-r2m)][1:100][coef.GA<0]
+    dt.R2.GA[order(-r2m)][1:50][coef.GA>0]
+    dt.R2.GA[BH.GA<0.05][order(p.GA)][coef.GA<0][1:10]
+    dt.R2.GA[BH.GA<0.05][order(p.GA)][coef.GA<0]
+
+    ###########
+    ## Anova ##
+    ###########
+    dt.R2.GA2[BH.anova<0.05][order(p.anova)][1:10]
+    dt.R2.GA[BH.anova<0.05][order(p.anova)][1:10]
+  }
+
+```
+
+## Plot logCPM by GA
+```{r rlmer_csh1_plot}
+targets<-c(
+  dt.R2.GA2[order(-r2m)][["gene"]][1:100],
+  dt.R2.GA2[order(p.combined)][["gene"]][1:100],
+  dt.R2.GA[BH.GA<0.05][order(p.GA)][coef.GA<0][["gene"]][1:100]
+  ) %>% unique
+#
+  li.plots<-lapply(dl.logCPM[targets], function(dt.foo){
+      my.gene<-unique(dt.foo[["geneName"]])
+      message(my.gene)
+
+      r2m<-li.lmer[[my.gene]][["stat"]][Model=="GA2"][["r2m"]] %>% round(3)
+      r2c<-li.lmer[[my.gene]][["stat"]][Model=="GA2"][["r2c"]] %>% round(3)
+      #my.title=paste0(my.gene," (r2m:",r2m,", r2c:",r2c,")")
+      my.title=paste0(my.gene," (r2m:",r2m,")")
+
+      my.title.y<-latex2exp::TeX(r"($\textbf{log_2 CPM}$)")
+  
+      ggplot(dt.foo, aes(x = GAwk, y = logCPM)) +
+      geom_line(aes(group = POPSID), linewidth = .5, col="grey80",alpha=.7) +
+      geom_point(aes(color = as.factor(GA)), size=2, alpha=.7) +
+      labs(subtitle=my.title, x = "Gestational Age (weeks)", y=my.title.y, color = "GA (week)") +
+      geom_ribbon(data=li.lmer[[my.gene]][["predict"]], aes(ymin=conf.low, ymax=conf.high), alpha=0.6, fill = "grey40") +
+      geom_line(data=li.lmer[[my.gene]][["predict"]], linewidth=1.5, col="blue",alpha=0.8) + 
+      scale_x_continuous(breaks=c(12,20,28,36)) +
+      scale_color_manual(values=cbPalette2) +
+      theme_Publication() +
+      theme(legend.position="none")
+  })
+
+  # Top 100 by R2M
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.pdf'))
+  cairo_pdf(filename=file.name1, width=14, height=9, onefile=T)
+  grid.text(label=paste0("Supplementary Figure 4.\nTop 100 cfRNAs\nby the coefficient of determination"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.6,just="center")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(-r2m)][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+
+  # Top 100 by p.combined
+  grid.newpage()
+  grid.text(label=paste0("Supplementary Figure 5.\nTop 100 cfRNAs\nby the combined p-values"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.6,just="center")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(p.combined)][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+
+  # Top 100 by negative coefficient in linear mixed effect model (GA only)
+  grid.newpage()
+  grid.text(label=paste0("Supplementary Figure 6.\nTop 100 cfRNAs\nsignificantly decreasing\n(negative coefficient)\nby gestational age"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.6,just="center")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA[BH.GA<0.05][order(p.GA)][coef.GA<0][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
+
+  if(F){
+  ##
+  # Top 100 by R2M
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.top100.r2m.pdf'))
+  #pdf(file=file.name1, width=14, height=9,title="Longitudinal analysis via mixed effect model")
+  cairo_pdf(filename=file.name1, width=14, height=9, onefile=T)
+  grid.text(label=paste0("Supplementary Figure 3.\nTop 100 cfRNAs\nby the coefficient of determination"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.6,just="center")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(-r2m)][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
+
+  # Top 100 by p.combined
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.top100.p.combined.pdf'))
+  cairo_pdf(filename=file.name1, width=14, height=9, onefile=T)
+  grid.text(label=paste0("Supplementary Figure 4.\nTop 100 cfRNAs\nby the combined p-values"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.6,just="center")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(p.combined)][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
+
+  # Top 100 by negative coefficient in linear mixed effect model (GA only)
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.top100.decreasing.pdf'))
+  cairo_pdf(filename=file.name1, width=14, height=9, onefile=T)
+  grid.text(label=paste0("Supplementary Figure 5.\nTop 100 cfRNAs\nsignificantly decreasing\n(negative coefficient)\nby gestational age"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.6,just="center")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA[BH.GA<0.05][order(p.GA)][coef.GA<0][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
+  }
+
+  if(F){
+  # Bottom 100 by negative coefficient in linear mixed effect model (GA only)
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.bottom100.decreasing.pdf'))
+  pdf(file=file.name1, width=14, height=9,title="Longitudinal analysis via mixed effect model")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA[BH.GA<0.05][order(-p.GA)][coef.GA<0][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
+
+  # Top 100 by R2C
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.top100.r2c.pdf'))
+  pdf(file=file.name1, width=14, height=9,title="Longitudinal analysis via mixed effect model")
+  grid.text(label=paste0("Longitudinal analysis of cfRNA\nfrom maternal blood\n(Top 100 genes by R2C)"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.7,just="center")
+  grid.text(label=paste("Sungsam Gong\n<ssg29 @ cam.ac.uk>\n",Sys.Date()),gp=gpar(fontsize=30,fontface="bold"),x=0.8,y=.2,just="right")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(-r2c)][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
+
+  # Top 100 by abs(coef.GA)
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.top100.coefGA.pdf'))
+  pdf(file=file.name1, width=14, height=9,title="Longitudinal analysis via mixed effect model")
+  grid.text(label=paste0("Longitudinal analysis of cfRNA\nfrom maternal blood\n(Top 100 genes by coef(GA))"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.7,just="center")
+  grid.text(label=paste("Sungsam Gong\n<ssg29 @ cam.ac.uk>\n",Sys.Date()),gp=gpar(fontsize=30,fontface="bold"),x=0.8,y=.2,just="right")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(-abs(coef.GA))][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
+
+  # Top 100 by pos(coef.GA)
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.top100.pos.coefGA.pdf'))
+  pdf(file=file.name1, width=14, height=9,title="Longitudinal analysis via mixed effect model")
+  grid.text(label=paste0("Longitudinal analysis of cfRNA\nfrom maternal blood\n(Top 100 genes by coef(GA))>0"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.7,just="center")
+  grid.text(label=paste("Sungsam Gong\n<ssg29 @ cam.ac.uk>\n",Sys.Date()),gp=gpar(fontsize=30,fontface="bold"),x=0.8,y=.2,just="right")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(-coef.GA)][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
+
+  # Top 100 by neg(coef.GA)
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.top100.neg.coefGA.pdf'))
+  pdf(file=file.name1, width=14, height=9,title="Longitudinal analysis via mixed effect model")
+  grid.text(label=paste0("Longitudinal analysis of cfRNA\nfrom maternal blood\n(Top 100 genes by coef(GA))<0"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.7,just="center")
+  grid.text(label=paste("Sungsam Gong\n<ssg29 @ cam.ac.uk>\n",Sys.Date()),gp=gpar(fontsize=30,fontface="bold"),x=0.8,y=.2,just="right")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(coef.GA)][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
+
+  # Top 100 by abs(coef.GA2)
+  file.name1<-file.path('Figures/Suppl',paste0('cfRNA.Suppl.Data.Fig.logCPM_by_GA_lmer.top100.coefGA2.pdf'))
+  pdf(file=file.name1, width=14, height=9,title="Longitudinal analysis via mixed effect model")
+  grid.text(label=paste0("Longitudinal analysis of cfRNA\nfrom maternal blood\n(Top 100 genes by coef(GA2))"),gp=gpar(fontsize=50,fontface="bold"),x=.5,y=.7,just="center")
+  grid.text(label=paste("Sungsam Gong\n<ssg29 @ cam.ac.uk>\n",Sys.Date()),gp=gpar(fontsize=30,fontface="bold"),x=0.8,y=.2,just="right")
+  gridExtra::marrangeGrob(li.plots[dt.R2.GA2[order(-abs(coef.GA2))][["gene"]][1:100]],nrow=2,ncol=4,top=NULL)
+  dev.off()
+  }
+
+```
+
+## Plot an example
+```{r rlmer_csh1_plot_foo1, eval=F}
+  my.gene<-"CSHL1"
+  my.gene<-"TTPAL"
+
+  dt.foo<-dl.logCPM[[my.gene]]
+  system.time(my.lmer <- lme4::lmer(logCPM ~ 1 + rGAwk + I(rGAwk^2) + (1 | POPSID), data = dt.foo))
+  system.time(my.lmer.test <- lmerTest::lmer(logCPM ~ 1 + rGAwk + I(rGAwk^2) + (1 | POPSID), data = dt.foo))
+
+  lmerTest:::get_coefmat(my.lmer.test)
+  MuMIn::coeffs(my.lmer.test)
+  MuMIn::r.squaredGLMM(my.lmer.test)
+
+  # Predictions for the robust model
+  dt.lmer.predict <- ggeffects::ggpredict(li.models[[my.gene]][["lmer"]],
+                      terms = list(rGAwk= seq(min(dl.logCPM[[my.gene]]$rGAwk), max(dl.logCPM[[my.gene]]$rGAwk), length = 30)),
+                      verbose = FALSE) %>% data.table %>% setnames("x","rGAwk") %>% setnames("predicted","logCPM")
+  dt.lmer.predict[,GAwk:=rGAwk*8 +4][,group:=NULL][,rGAwk:=NULL] %>% setcolorder("GAwk")
+
+
+
+  p1<-plot(li.models[[my.gene]][["lmer"]], which=1)
+
+  p.all<-
+  ggplot(dl.logCPM[[my.gene]], aes(x = GAwk, y = logCPM)) +
+  geom_line(aes(group = POPSID), linewidth = .5, col="grey80",alpha=.7) +
+  geom_point(aes(color = as.factor(GA)), size=2, alpha=.7) +
+  labs(x = "Gestational Age", color = "GA (week)") +
+  theme(legend.position = "top") +
+  geom_ribbon(data=dt.lmer.predict, aes(ymin=conf.low, ymax=conf.high), alpha=0.6, fill = "grey40") +
+  geom_line(data=dt.lmer.predict, size=1.5, col="blue",alpha=0.8) + 
+  scale_x_continuous(breaks=c(12,20,28,36)) +
+  scale_color_manual(values=cbPalette2) +
+  theme_Publication() +
+  theme(legend.position="none")
+
+  #pdf(file="Figures/RLMM.CSH1.by.GA.pdf")
+  cairo_pdf(filename=file.path("Figures",paste0("RLMM.",my.gene,".by.GA.pdf")), onefile=T)
+  cowplot::plot_grid(p1)
+  p2 #+ theme_Publication()
+  #p3 #+ theme_Publication()
+  p.all
+  dev.off()
+```

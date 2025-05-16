@@ -16,7 +16,7 @@ digraph G {
   ];
 
   core_deg[
-    label = "Core DEG";
+    label = "Shared DEG";
     shape = rect;
   ];
 
