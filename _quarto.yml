@@ -9,6 +9,7 @@ execute:
 book:
   title: "cfRNA POP Study"
   twitter-card: true
+  google-analytics: "G-0VJ9MW56MK"
   author:
     - name: "[Sung Gong](https://sung.github.io/)"
       orchid: 0000-0002-2335-9361
@@ -16,7 +17,7 @@ book:
   date: last-modified #"08/10/2024"
   page-footer:
     left: |
-      Cookbook for the analysis of cell-free RNA, &copy; [Sungsam Gong](https://sung.github.io) (2024)
+      Cookbook for the analysis of cell-free RNA, &copy; [Sungsam Gong](https://sung.github.io) (2024-2025)
     right: |
       This book was built with <a href="https://quarto.org/">Quarto</a>.
   site-url: https://ObsGynaeCam.github.io/cell-free-rna-2024
