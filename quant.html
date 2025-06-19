@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.31">
+<meta name="generator" content="quarto-1.7.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -73,14 +73,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-1d9754e6b7e1dc15a659fbcd6780067e.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-ec59717222d4d18488216d07f8bb4c3b.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-1d9754e6b7e1dc15a659fbcd6780067e.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-629432c7d29b615b3888e3cdfd62b7a9.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-11cbd3234f06388db87dcfbb7d560d62.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-629432c7d29b615b3888e3cdfd62b7a9.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-9e5751c9c0e8fbb9471b0f0078eb07d4.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="site_libs/bootstrap/bootstrap-dark-f7288d29b21af75f40a82d96691b0efd.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
-<link href="site_libs/bootstrap/bootstrap-9e5751c9c0e8fbb9471b0f0078eb07d4.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-24517ed2f2c22205aca6e40972cf7aeb.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-dark-c42d7d04813e8da36f5acd1e58c8c5c3.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-24517ed2f2c22205aca6e40972cf7aeb.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -439,7 +439,7 @@ gtag('config', 'G-0VJ9MW56MK', { 'anonymize_ip': true});
   <li><a href="#sec-zscore-mat" id="toc-sec-zscore-mat" class="nav-link" data-scroll-target="#sec-zscore-mat"><span class="header-section-number">2.2.3</span> The z-score matrix</a></li>
   <li><a href="#sec-logreg" id="toc-sec-logreg" class="nav-link" data-scroll-target="#sec-logreg"><span class="header-section-number">2.2.4</span> Univariate logistic regression</a></li>
   </ul></li>
-  <li><a href="#sec-core-deg" id="toc-sec-core-deg" class="nav-link" data-scroll-target="#sec-core-deg"><span class="header-section-number">2.3</span> Selection of core differentially expressed genes</a></li>
+  <li><a href="#sec-core-deg" id="toc-sec-core-deg" class="nav-link" data-scroll-target="#sec-core-deg"><span class="header-section-number">2.3</span> Selection of the 17 shared differentially expressed genes</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/obsgynaecam/cell-free-rna-2024/edit/main/quant.qmd" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/obsgynaecam/cell-free-rna-2024/blob/main/quant.qmd" class="toc-action"><i class="bi empty"></i>View source</a></li><li><a href="https://github.com/obsgynaecam/cell-free-rna-2024/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -865,17 +865,17 @@ Listing&nbsp;2.10: Code for univariate logisitic regression
 </section>
 </section>
 <section id="sec-core-deg" class="level2" data-number="2.3">
-<h2 data-number="2.3" class="anchored" data-anchor-id="sec-core-deg"><span class="header-section-number">2.3</span> Selection of core differentially expressed genes</h2>
+<h2 data-number="2.3" class="anchored" data-anchor-id="sec-core-deg"><span class="header-section-number">2.3</span> Selection of the 17 shared differentially expressed genes</h2>
 <p>To select a subset of genes that best explains the outcome of samples from the 28wkGA group of the discovery cohort, we used the following four criteria: 1) the p-values from DESeq2, 2) the p-values from edgeR, 3) AIC, and 4) AUC from univariable logistic regressions. Then we selected the top 1% genes for each category (i.e.&nbsp;151 genes of the lowest p-values from DESeq2 and edgeR, 151 genes having the lowest AIC, and 151 genes having the highest AUC) and constructed a Venn diagram using ggvenn (v0.1.0) R package (52). We selected a total of 17 genes satisfying all the four criteria (i.e.&nbsp;the intersection) and constructed a gene expression matrix (i.e.&nbsp;the 17 genes across the samples from the 28wkGA group of the discovery cohort) using the z-score.</p>
 <div class="cell">
-<div id="lst-set-core-deg" class="r cell-code listing quarto-float quarto-figure quarto-figure-left anchored" data-code-summary="Code to find the core DEGs">
+<div id="lst-set-core-deg" class="r cell-code listing quarto-float quarto-figure quarto-figure-left anchored" data-code-summary="Code to find the shared DEGs">
 <figure class="quarto-float quarto-float-lst figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-lst" id="lst-set-core-deg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Listing&nbsp;2.11: Code to find the core DEGs
+Listing&nbsp;2.11: Code to find the shared DEGs
 </figcaption>
 <div aria-describedby="lst-set-core-deg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <details class="code-fold">
-<summary>Code to find the core DEGs</summary>
+<summary>Code to find the shared DEGs</summary>
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1"></a>venn.top1pctZ<span class="ot">&lt;-</span><span class="fu">list</span>(<span class="st">`</span><span class="at">DESeq2</span><span class="st">`</span><span class="ot">=</span>dl.resLFC[[<span class="st">"28wk"</span>]][<span class="fu">order</span>(pvalue)][<span class="dv">1</span><span class="sc">:</span><span class="dv">151</span>]<span class="sc">$</span>gene_id,</span>
 <span id="cb11-2"><a href="#cb11-2"></a>                  <span class="st">`</span><span class="at">edgeR</span><span class="st">`</span><span class="ot">=</span>dl.res.edgeR[[<span class="st">"28wk"</span>]][<span class="fu">order</span>(PValue)][<span class="dv">1</span><span class="sc">:</span><span class="dv">151</span>]<span class="sc">$</span>gene_id,</span>
 <span id="cb11-3"><a href="#cb11-3"></a>                <span class="st">`</span><span class="at">AUC</span><span class="st">`</span><span class="ot">=</span>dl.logregZ[[<span class="st">"28wk"</span>]][<span class="fu">order</span>(<span class="sc">-</span>auc)][<span class="dv">1</span><span class="sc">:</span><span class="dv">151</span>]<span class="sc">$</span>gene_id,</span>
@@ -894,7 +894,7 @@ Listing&nbsp;2.11: Code to find the core DEGs
 </figure>
 </div>
 </div>
-<p>The Venn diagram for the 17 core DEGs is shown in <a href="main_figure.html#sec-fig2c" class="quarto-xref"><span>Section 8.2.3</span></a>.</p>
+<p>The Venn diagram for the 17 shared DEGs is shown in <a href="main_figure.html#sec-fig2c" class="quarto-xref"><span>Section 8.2.3</span></a>.</p>
 
 
 <!-- -->
@@ -1674,7 +1674,7 @@ Listing&nbsp;2.11: Code to find the core DEGs
 <span id="cb12-295"><a href="#cb12-295"></a><span class="co">#save(dl.logregZ, file=paste0("RData/dl.logregZ.",my.type,".",my.salmon.index,".RData"))</span></span>
 <span id="cb12-296"><a href="#cb12-296"></a><span class="in">```</span></span>
 <span id="cb12-297"><a href="#cb12-297"></a></span>
-<span id="cb12-298"><a href="#cb12-298"></a><span class="fu">## Selection of core differentially expressed genes {#sec-core-deg}</span></span>
+<span id="cb12-298"><a href="#cb12-298"></a><span class="fu">## Selection of the 17 shared differentially expressed genes {#sec-core-deg}</span></span>
 <span id="cb12-299"><a href="#cb12-299"></a></span>
 <span id="cb12-300"><a href="#cb12-300"></a>To select a subset of genes that best explains the outcome of samples from the 28wkGA group of the discovery cohort, we used the following four criteria: 1) the p-values from DESeq2, 2) the p-values from edgeR, 3) AIC, and 4) AUC from univariable logistic regressions. Then we selected the top 1% genes for each category (i.e. 151 genes of the lowest p-values from DESeq2 and edgeR, 151 genes having the lowest AIC, and 151 genes having the highest AUC) and constructed a Venn diagram using ggvenn (v0.1.0) R package (52). We selected a total of 17 genes satisfying all the four criteria (i.e. the intersection) and constructed a gene expression matrix (i.e. the 17 genes across the samples from the 28wkGA group of the discovery cohort) using the z-score.</span>
 <span id="cb12-301"><a href="#cb12-301"></a></span>
@@ -1682,8 +1682,8 @@ Listing&nbsp;2.11: Code to find the core DEGs
 <span id="cb12-303"><a href="#cb12-303"></a><span class="co">#| label: lst-set-core-deg</span></span>
 <span id="cb12-304"><a href="#cb12-304"></a><span class="co">#| lst-label: lst-set-core-deg</span></span>
 <span id="cb12-305"><a href="#cb12-305"></a><span class="co">#| eval: false</span></span>
-<span id="cb12-306"><a href="#cb12-306"></a><span class="co">#| code-summary: Code to find the core DEGs</span></span>
-<span id="cb12-307"><a href="#cb12-307"></a><span class="co">#| lst-cap: Code to find the core DEGs</span></span>
+<span id="cb12-306"><a href="#cb12-306"></a><span class="co">#| code-summary: Code to find the shared DEGs</span></span>
+<span id="cb12-307"><a href="#cb12-307"></a><span class="co">#| lst-cap: Code to find the shared DEGs</span></span>
 <span id="cb12-308"><a href="#cb12-308"></a>venn.top1pctZ<span class="ot">&lt;-</span><span class="fu">list</span>(<span class="st">`</span><span class="at">DESeq2</span><span class="st">`</span><span class="ot">=</span>dl.resLFC[[<span class="st">"28wk"</span>]][<span class="fu">order</span>(pvalue)][<span class="dv">1</span><span class="sc">:</span><span class="dv">151</span>]<span class="sc">$</span>gene_id,</span>
 <span id="cb12-309"><a href="#cb12-309"></a>                  <span class="st">`</span><span class="at">edgeR</span><span class="st">`</span><span class="ot">=</span>dl.res.edgeR[[<span class="st">"28wk"</span>]][<span class="fu">order</span>(PValue)][<span class="dv">1</span><span class="sc">:</span><span class="dv">151</span>]<span class="sc">$</span>gene_id,</span>
 <span id="cb12-310"><a href="#cb12-310"></a>                <span class="st">`</span><span class="at">AUC</span><span class="st">`</span><span class="ot">=</span>dl.logregZ[[<span class="st">"28wk"</span>]][<span class="fu">order</span>(<span class="sc">-</span>auc)][<span class="dv">1</span><span class="sc">:</span><span class="dv">151</span>]<span class="sc">$</span>gene_id,</span>
@@ -1699,7 +1699,7 @@ Listing&nbsp;2.11: Code to find the core DEGs
 <span id="cb12-320"><a href="#cb12-320"></a>core17 <span class="ot">&lt;-</span> top1pct.genesZ <span class="co"># used in 5-fold CV</span></span>
 <span id="cb12-321"><a href="#cb12-321"></a><span class="in">```</span></span>
 <span id="cb12-322"><a href="#cb12-322"></a></span>
-<span id="cb12-323"><a href="#cb12-323"></a>The Venn diagram for the 17 core DEGs is shown in @sec-fig2c.</span></code><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></pre></div>
+<span id="cb12-323"><a href="#cb12-323"></a>The Venn diagram for the 17 shared DEGs is shown in @sec-fig2c.</span></code><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></pre></div>
 </div></div></div></div></div>
 </div> <!-- /content -->
 <footer class="footer">

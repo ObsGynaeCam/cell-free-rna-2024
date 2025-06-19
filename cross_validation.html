@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.31">
+<meta name="generator" content="quarto-1.7.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -73,14 +73,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-1d9754e6b7e1dc15a659fbcd6780067e.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-ec59717222d4d18488216d07f8bb4c3b.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-1d9754e6b7e1dc15a659fbcd6780067e.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-629432c7d29b615b3888e3cdfd62b7a9.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-11cbd3234f06388db87dcfbb7d560d62.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-629432c7d29b615b3888e3cdfd62b7a9.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-9e5751c9c0e8fbb9471b0f0078eb07d4.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="site_libs/bootstrap/bootstrap-dark-f7288d29b21af75f40a82d96691b0efd.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
-<link href="site_libs/bootstrap/bootstrap-9e5751c9c0e8fbb9471b0f0078eb07d4.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-24517ed2f2c22205aca6e40972cf7aeb.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-dark-c42d7d04813e8da36f5acd1e58c8c5c3.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-24517ed2f2c22205aca6e40972cf7aeb.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -1807,7 +1807,7 @@ Listing&nbsp;3.3: Code to download <code>SVM-RFE</code>
 <span id="cb20-89"><a href="#cb20-89"></a>  <span class="fu">load</span>(my.RData)</span>
 <span id="cb20-90"><a href="#cb20-90"></a>}<span class="cf">else</span>{</span>
 <span id="cb20-91"><a href="#cb20-91"></a>  my.targets<span class="ot">&lt;-</span><span class="fu">c</span>(<span class="st">"LEP"</span>,<span class="st">"PAPPA2"</span>,<span class="st">"LEP,PAPPA2"</span>,</span>
-<span id="cb20-92"><a href="#cb20-92"></a>                <span class="st">"LEP,LY6G6D,PAPPA2"</span> <span class="co"># best performing LASSO 3-mRNA model</span></span>
+<span id="cb20-92"><a href="#cb20-92"></a>                <span class="st">"LEP,LY6G6D,PAPPA2"</span> <span class="co"># best performing LASSO 3-cfRNA model</span></span>
 <span id="cb20-93"><a href="#cb20-93"></a>                )</span>
 <span id="cb20-94"><a href="#cb20-94"></a></span>
 <span id="cb20-95"><a href="#cb20-95"></a>  mat.tr<span class="ot">&lt;-</span>li.mat[[<span class="st">"train"</span>]][[<span class="st">"28wk"</span>]] <span class="co"># training model</span></span>
@@ -3572,7 +3572,7 @@ Listing&nbsp;3.3: Code to download <code>SVM-RFE</code>
 <span id="cb21-1232"><a href="#cb21-1232"></a>  <span class="fu">load</span>(my.RData)</span>
 <span id="cb21-1233"><a href="#cb21-1233"></a>}<span class="cf">else</span>{</span>
 <span id="cb21-1234"><a href="#cb21-1234"></a>  my.targets<span class="ot">&lt;-</span><span class="fu">c</span>(<span class="st">"LEP"</span>,<span class="st">"PAPPA2"</span>,<span class="st">"LEP,PAPPA2"</span>,</span>
-<span id="cb21-1235"><a href="#cb21-1235"></a>                <span class="st">"LEP,LY6G6D,PAPPA2"</span> <span class="co"># best performing LASSO 3-mRNA model</span></span>
+<span id="cb21-1235"><a href="#cb21-1235"></a>                <span class="st">"LEP,LY6G6D,PAPPA2"</span> <span class="co"># best performing LASSO 3-cfRNA model</span></span>
 <span id="cb21-1236"><a href="#cb21-1236"></a>                )</span>
 <span id="cb21-1237"><a href="#cb21-1237"></a></span>
 <span id="cb21-1238"><a href="#cb21-1238"></a>  mat.tr<span class="ot">&lt;-</span>li.mat[[<span class="st">"train"</span>]][[<span class="st">"28wk"</span>]] <span class="co"># training model</span></span>

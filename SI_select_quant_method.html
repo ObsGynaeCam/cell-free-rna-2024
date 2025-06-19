@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.31">
+<meta name="generator" content="quarto-1.7.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -73,14 +73,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-1d9754e6b7e1dc15a659fbcd6780067e.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-ec59717222d4d18488216d07f8bb4c3b.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-1d9754e6b7e1dc15a659fbcd6780067e.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-629432c7d29b615b3888e3cdfd62b7a9.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-11cbd3234f06388db87dcfbb7d560d62.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-629432c7d29b615b3888e3cdfd62b7a9.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-9e5751c9c0e8fbb9471b0f0078eb07d4.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="site_libs/bootstrap/bootstrap-dark-f7288d29b21af75f40a82d96691b0efd.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
-<link href="site_libs/bootstrap/bootstrap-9e5751c9c0e8fbb9471b0f0078eb07d4.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-24517ed2f2c22205aca6e40972cf7aeb.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-dark-c42d7d04813e8da36f5acd1e58c8c5c3.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-24517ed2f2c22205aca6e40972cf7aeb.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -491,7 +491,7 @@ window.Quarto = {
 <p><span class="math display">\[Recall=TP⁄((TP+FN))\]</span></p>
 <p><span class="math display">\[F_1  score=2  (Precision×Recall)/(Precision+Recall)\]</span></p>
 <p>Finally, we chose the pipeline based on the higher value of F1 score which is in favour of a smaller number of FP and FN.</p>
-<p>For the 42 chrY genes, we found that a smaller number of reads was quantified from the female samples when “Salmon (SA mode)” was used compared to “HiSat2+Salmon” – this pattern was more noticeable from the samples of advanced gestation (<span class="quarto-unresolved-ref">?sec-si-figure-a</span>). Therefore, the number of FP and FN were smaller for “Salmon (SA mode)” (Supplementary Text Table 2), and the F1 score was higher for “Salmon (SA mode)” than “HiSat2+Salmon” (<span class="quarto-unresolved-ref">?sec-si-figure-b</span> and Supplementary Text Table 2). Based on the 10M down-sampled RNA-seq samples, there were 24 and 16 chrY genes quantified as having at least one read from the 100 randomly selected samples, by “HiSat2+Salmon” and “Salmon (SA mode)”, respectively (<span class="quarto-unresolved-ref">?sec-si-figure-c</span>).</p>
+<p>For the 42 chrY genes, we found that a smaller number of reads was quantified from the female samples when “Salmon (SA mode)” was used compared to “HiSat2+Salmon” – this pattern was more noticeable from the samples of advanced gestation (<a href="suppl_figure.html#sec-si-fig1a" class="quarto-xref"><span>Section 9.1.1</span></a>). Therefore, the number of FP and FN were smaller for “Salmon (SA mode)” (Supplementary Text Table 2), and the F1 score was higher for “Salmon (SA mode)” than “HiSat2+Salmon” (<a href="suppl_figure.html#sec-si-fig1b" class="quarto-xref"><span>Section 9.1.2</span></a> and Supplementary Text Table 2). Based on the 10M down-sampled RNA-seq samples, there were 24 and 16 chrY genes quantified as having at least one read from the 100 randomly selected samples, by “HiSat2+Salmon” and “Salmon (SA mode)”, respectively (<a href="suppl_figure.html#sec-si-fig1c" class="quarto-xref"><span>Section 9.1.3</span></a>).</p>
 <section id="sec-si-rand" class="level2" data-number="5.1">
 <h2 data-number="5.1" class="anchored" data-anchor-id="sec-si-rand"><span class="header-section-number">5.1</span> Randomly select 100 samples and downsample reads</h2>
 <div id="lst-si-downsample" class="bash listing quarto-float quarto-figure quarto-figure-left anchored">
@@ -1086,7 +1086,7 @@ GA     Female Male Sum
 <span id="cb5-12"><a href="#cb5-12"></a></span>
 <span id="cb5-13"><a href="#cb5-13"></a>Finally, we chose the pipeline based on the higher value of F1 score which is in favour of a smaller number of FP and FN.</span>
 <span id="cb5-14"><a href="#cb5-14"></a></span>
-<span id="cb5-15"><a href="#cb5-15"></a>For the 42 chrY genes, we found that a smaller number of reads was quantified from the female samples when “Salmon (SA mode)” was used compared to “HiSat2+Salmon” – this pattern was more noticeable from the samples of advanced gestation (@sec-si-figure-a). Therefore, the number of FP and FN were smaller for “Salmon (SA mode)” (Supplementary Text Table 2), and the F1 score was higher for “Salmon (SA mode)” than “HiSat2+Salmon” (@sec-si-figure-b and Supplementary Text Table 2). Based on the 10M down-sampled RNA-seq samples, there were 24 and 16 chrY genes quantified as having at least one read from the 100 randomly selected samples, by “HiSat2+Salmon” and “Salmon (SA mode)”, respectively (@sec-si-figure-c).</span>
+<span id="cb5-15"><a href="#cb5-15"></a>For the 42 chrY genes, we found that a smaller number of reads was quantified from the female samples when “Salmon (SA mode)” was used compared to “HiSat2+Salmon” – this pattern was more noticeable from the samples of advanced gestation (@sec-si-fig1a). Therefore, the number of FP and FN were smaller for “Salmon (SA mode)” (Supplementary Text Table 2), and the F1 score was higher for “Salmon (SA mode)” than “HiSat2+Salmon” (@sec-si-fig1b and Supplementary Text Table 2). Based on the 10M down-sampled RNA-seq samples, there were 24 and 16 chrY genes quantified as having at least one read from the 100 randomly selected samples, by “HiSat2+Salmon” and “Salmon (SA mode)”, respectively (@sec-si-fig1c).</span>
 <span id="cb5-16"><a href="#cb5-16"></a></span>
 <span id="cb5-17"><a href="#cb5-17"></a><span class="fu">## Randomly select 100 samples and downsample reads {#sec-si-rand}</span></span>
 <span id="cb5-18"><a href="#cb5-18"></a></span>

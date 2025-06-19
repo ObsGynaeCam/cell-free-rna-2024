@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.31">
+<meta name="generator" content="quarto-1.7.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -73,14 +73,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-1d9754e6b7e1dc15a659fbcd6780067e.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-ec59717222d4d18488216d07f8bb4c3b.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-1d9754e6b7e1dc15a659fbcd6780067e.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-629432c7d29b615b3888e3cdfd62b7a9.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-11cbd3234f06388db87dcfbb7d560d62.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-629432c7d29b615b3888e3cdfd62b7a9.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-9e5751c9c0e8fbb9471b0f0078eb07d4.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="site_libs/bootstrap/bootstrap-dark-f7288d29b21af75f40a82d96691b0efd.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
-<link href="site_libs/bootstrap/bootstrap-9e5751c9c0e8fbb9471b0f0078eb07d4.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-24517ed2f2c22205aca6e40972cf7aeb.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-dark-c42d7d04813e8da36f5acd1e58c8c5c3.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-24517ed2f2c22205aca6e40972cf7aeb.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -464,7 +464,7 @@ Listing&nbsp;6.1: <code>cutadapt</code> command
 </div>
 </figure>
 </div>
-<p>We employed “Salmon (SA mode)” approach for both trimmed and un-trimmed input reads, then compared the number of read quantified on the 42 chrY genes, and the number of false classifications of fetal sex. Again, a sample is predicted as male if at least one read was quantified on any of the 42 protein-coding chrY genes as described before. We found that, regardless of trimming or not, the number of TP, TN, FP, and FN remained the same and the sum of read quantified on the 42 chrY genes also remained very similar (R=0.999, P&lt;2.2x10-16, Pearson’s correlation test with two-sided, as in <span class="quarto-unresolved-ref">?sec-si-figure-d</span>) , even though there were two female samples with a slightly higher sum of chrY reads when quantified using trimmed input reads (one 12wkGA sample with a total of 1.887 reads from non-trimmed input and 2.886 from trimmed input; one 20wkGA sample with a total of 0.918 read from non-trimmed input and 0.919 read from trimmed input).</p>
+<p>We employed “Salmon (SA mode)” approach for both trimmed and un-trimmed input reads, then compared the number of read quantified on the 42 chrY genes, and the number of false classifications of fetal sex. Again, a sample is predicted as male if at least one read was quantified on any of the 42 protein-coding chrY genes as described before. We found that, regardless of trimming or not, the number of TP, TN, FP, and FN remained the same and the sum of read quantified on the 42 chrY genes also remained very similar (R=0.999, P&lt;2.2x10-16, Pearson’s correlation test with two-sided, as in <a href="suppl_figure.html#sec-si-fig1d" class="quarto-xref"><span>Section 9.1.4</span></a>) , even though there were two female samples with a slightly higher sum of chrY reads when quantified using trimmed input reads (one 12wkGA sample with a total of 1.887 reads from non-trimmed input and 2.886 from trimmed input; one 20wkGA sample with a total of 0.918 read from non-trimmed input and 0.919 read from trimmed input).</p>
 <p>In conclusion, we employed “Salmon (SA mode)” without trimming the input raw sequencing reads.</p>
 
 
@@ -960,7 +960,7 @@ Listing&nbsp;6.1: <code>cutadapt</code> command
 <span id="cb2-11"><a href="#cb2-11"></a>         -m 20</span>
 <span id="cb2-12"><a href="#cb2-12"></a><span class="in">```</span></span>
 <span id="cb2-13"><a href="#cb2-13"></a></span>
-<span id="cb2-14"><a href="#cb2-14"></a><span class="in">We employed “Salmon (SA mode)” approach for both trimmed and un-trimmed input reads, then compared the number of read quantified on the 42 chrY genes, and the number of false classifications of fetal sex. Again, a sample is predicted as male if at least one read was quantified on any of the 42 protein-coding chrY genes as described before. We found that, regardless of trimming or not, the number of TP, TN, FP, and FN remained the same and the sum of read quantified on the 42 chrY genes also remained very similar (R=0.999, P&lt;2.2x10-16, Pearson's correlation test with two-sided, as in @sec-si-figure-d) , even though there were two female samples with a slightly higher sum of chrY reads when quantified using trimmed input reads (one 12wkGA sample with a total of 1.887 reads from non-trimmed input and 2.886 from trimmed input; one 20wkGA sample with a total of 0.918 read from non-trimmed input and 0.919 read from trimmed input). </span></span>
+<span id="cb2-14"><a href="#cb2-14"></a><span class="in">We employed “Salmon (SA mode)” approach for both trimmed and un-trimmed input reads, then compared the number of read quantified on the 42 chrY genes, and the number of false classifications of fetal sex. Again, a sample is predicted as male if at least one read was quantified on any of the 42 protein-coding chrY genes as described before. We found that, regardless of trimming or not, the number of TP, TN, FP, and FN remained the same and the sum of read quantified on the 42 chrY genes also remained very similar (R=0.999, P&lt;2.2x10-16, Pearson's correlation test with two-sided, as in @sec-si-fig1d) , even though there were two female samples with a slightly higher sum of chrY reads when quantified using trimmed input reads (one 12wkGA sample with a total of 1.887 reads from non-trimmed input and 2.886 from trimmed input; one 20wkGA sample with a total of 0.918 read from non-trimmed input and 0.919 read from trimmed input). </span></span>
 <span id="cb2-15"><a href="#cb2-15"></a></span>
 <span id="cb2-16"><a href="#cb2-16"></a><span class="in">In conclusion, we employed “Salmon (SA mode)” without trimming the input raw sequencing reads.</span></span></code><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></pre></div>
 </div></div></div></div></div>
