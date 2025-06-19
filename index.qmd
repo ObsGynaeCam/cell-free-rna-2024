@@ -1,6 +1,6 @@
 # Introduction {.unnumbered}
 
-This is a website to supplement the following paper by Gong _et al._ submitted to STM: **Elevated levels of circulating Leptin (*LEP*) and Pappalysin2 (*PAPPA2*) cell-free RNAs are the hallmarks of pregnancies complicated by preeclampsia combined with fetal growth restriction**.
+This is a website to supplement the following paper by Gong _et al._ accepted in Nature Communications: **Elevated levels of circulating Leptin (*LEP*) and Pappalysin2 (*PAPPA2*) cell-free RNAs are the hallmarks of pregnancies complicated by preeclampsia combined with fetal growth restriction**.
 
 It contains the `R` and other relevant codes (*e.g.* `bash` or `graphviz`) that were used to process the RNA-seq data and to generate the main and the supplementary figures in the paper. 
 
@@ -12,4 +12,4 @@ The maternal blood was drawn at around 12, 20, 28 and 36 weeks of gestational ag
 
 We divided our cohort into **discovery** and **validation** groups. The **discovery** group consisted of **15** PE with FGR cases resulting in preterm delivery (<37 week of gestational age) and the **validation** group consisted of **24** PE with FGR resulting in term delivery. Each case was paired with ~4 matched controls hence a total of **60** and **96** healthy control samples, with no overlap, were included in the **discovery** and the **validation** group, respectively.
 
-At the discovery stage, cfRNAs that were differentially expressed in cases compared to controls were detected at each of the gestational age group and 11 machine learning (ML) methods (@fig-11ML) were compared to find the best predictive models by controlling the number of predictor mRNAs. The best performing model from the discovery stage was validated across each gestational age group in our internal validation dataset. We also analysed [the external validation dataset](https://pubmed.ncbi.nlm.nih.gov/32611681/) which reported cfRNAs in plasma samples from women with an established diagnosis of PE.
+At the discovery stage, cfRNAs that were differentially expressed in cases compared to controls were detected at each of the gestational age group and 11 machine learning (ML) methods (@fig-11ML) were compared to find the best predictive models by controlling the number of predictor cfRNAs. The best performing model from the discovery stage was validated across each gestational age group in our internal validation dataset. We also analysed [the external validation dataset](https://pubmed.ncbi.nlm.nih.gov/32611681/) which reported cfRNAs in plasma samples from women with an established diagnosis of PE.

@@ -1,6 +1,6 @@
 ![Quarto Publish](https://github.com/ObsGynaeCam/cell-free-rna-2024/actions/workflows/publish.yml/badge.svg)
 
-[This repo](https://github.com/ObsGynaeCam/cell-free-rna-2024/) is to supplement the manuscript titled **Elevated levels of circulating Leptin (LEP) and Pappalysin2 (PAPPA2) cell-free RNAs are the hallmarks of pregnancies complicated by preeclampsia combined with fetal growth restriction** by Gong _et al._ submitted to publish in Nature Communications.
+[This repo](https://github.com/ObsGynaeCam/cell-free-rna-2024/) is to supplement the manuscript titled **Elevated levels of circulating Leptin (LEP) and Pappalysin2 (PAPPA2) cell-free RNAs are the hallmarks of pregnancies complicated by preeclampsia combined with fetal growth restriction** by Gong _et al._ accepted to publish in Nature Communications.
 
 Please check the code in the [rendered website](https://obsgynaecam.github.io/cell-free-rna-2024/).
 
@@ -10,5 +10,6 @@ Preeclampsia (PE) and fetal growth restriction (FGR) complicate 5-10% of pregnan
 
 ![Schematic diagrams showing the current study design](static/figure/cfRNA.Fig1r.png)
 
---
+---
+
 This repo is maintained by [Sung Gong](https://github.com/sung).

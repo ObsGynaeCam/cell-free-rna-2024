@@ -1232,7 +1232,7 @@ if(file.exists(my.RData)){
   load(my.RData)
 }else{
   my.targets<-c("LEP","PAPPA2","LEP,PAPPA2",
-                "LEP,LY6G6D,PAPPA2" # best performing LASSO 3-mRNA model
+                "LEP,LY6G6D,PAPPA2" # best performing LASSO 3-cfRNA model
                 )
 
   mat.tr<-li.mat[["train"]][["28wk"]] # training model

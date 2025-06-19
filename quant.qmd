@@ -295,7 +295,7 @@ for(my.GA in names(li.GA)[1:3]){ # for each 12wk, 20wk and 28wkGA
 #save(dl.logregZ, file=paste0("RData/dl.logregZ.",my.type,".",my.salmon.index,".RData"))
 ```
 
-## Selection of core differentially expressed genes {#sec-core-deg}
+## Selection of the 17 shared differentially expressed genes {#sec-core-deg}
 
 To select a subset of genes that best explains the outcome of samples from the 28wkGA group of the discovery cohort, we used the following four criteria: 1) the p-values from DESeq2, 2) the p-values from edgeR, 3) AIC, and 4) AUC from univariable logistic regressions. Then we selected the top 1% genes for each category (i.e. 151 genes of the lowest p-values from DESeq2 and edgeR, 151 genes having the lowest AIC, and 151 genes having the highest AUC) and constructed a Venn diagram using ggvenn (v0.1.0) R package (52). We selected a total of 17 genes satisfying all the four criteria (i.e. the intersection) and constructed a gene expression matrix (i.e. the 17 genes across the samples from the 28wkGA group of the discovery cohort) using the z-score.
 
@@ -303,8 +303,8 @@ To select a subset of genes that best explains the outcome of samples from the 2
 #| label: lst-set-core-deg
 #| lst-label: lst-set-core-deg
 #| eval: false
-#| code-summary: Code to find the core DEGs
-#| lst-cap: Code to find the core DEGs
+#| code-summary: Code to find the shared DEGs
+#| lst-cap: Code to find the shared DEGs
 venn.top1pctZ<-list(`DESeq2`=dl.resLFC[["28wk"]][order(pvalue)][1:151]$gene_id,
                   `edgeR`=dl.res.edgeR[["28wk"]][order(PValue)][1:151]$gene_id,
                 `AUC`=dl.logregZ[["28wk"]][order(-auc)][1:151]$gene_id,
@@ -320,4 +320,4 @@ top1pct.genesZ<-dt.venn.top1pctZ[AIC==1 & AUC==1 & DESeq2==1 & edgeR==1]$Gene
 core17 <- top1pct.genesZ # used in 5-fold CV
 ```
 
-The Venn diagram for the 17 core DEGs is shown in @sec-fig2c.
+The Venn diagram for the 17 shared DEGs is shown in @sec-fig2c.

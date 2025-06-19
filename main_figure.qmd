@@ -136,11 +136,11 @@ Making the supplementary text figures are shown in @sec-suppl-figure.
 ```{r}
 #| label: fig-2d
 #| eval: false
-## Heatmap of the 17 core genes
+## Heatmap of the 17 shared genes
 # cfRNA.preterm.PE.modelling.WF2.POPS-2022.GRCh38.88.Rmd 
   load("RData/dt.cpmZ.preterm.POPS-2022.GRCh38.88.RData")
 
-  #top1pct.genesZ # the 17 core DEGs
+  #top1pct.genesZ # the 17 shared DEGs
   this.mat<-dt.cpmZ[GA=="28wk" & geneName %in% top1pct.genesZ,.(SampleID,geneName,logCPMZ,y=ifelse(Condition=="Case",1,0))] %>% dcast.data.table(SampleID+y~geneName,value.var="logCPMZ") %>% as.matrix(rownames="SampleID") # %>% as.data.frame
   #pheatmap::pheatmap(t(this.mat[,top1pct.genesZ]))
 
@@ -167,13 +167,13 @@ Making the supplementary text figures are shown in @sec-suppl-figure.
 ## p2.hist
 ## p2.venn
 ## p2.heatmap
-  pdf(file="Figures/cfRNA.Fig2.pdf", width=11, height=9,title="Fig2: the 17 core genes")
+  pdf(file="Figures/cfRNA.Fig2.pdf", width=11, height=9,title="Fig2: the 17 shared genes")
   cowplot::plot_grid(p2.hist, p2.vol, p2.venn, p2.heat, nrow=2,labels="AUTO",label_size=27,align="hv",axis='l')
   dev.off()
 ```
 
 ## Figure 3 {#sec-fig3}
-![Figure 3 in the paper](static/figure/cfRNA.Fig3.png){#fig-fig3}
+![Figure 3 in the paper](static/figure/cfRNA.Fig3r2.png){#fig-fig3}
 
 ### Figure 3A {#sec-fig3a}
 ```{r}
@@ -222,7 +222,7 @@ Making the supplementary text figures are shown in @sec-suppl-figure.
     geom_pointrange(aes(col=NF, ymin=mean_AUC_lo, ymax=mean_AUC_hi),position=position_dodge(width=0.7), size=.9,alpha=.8) +
     scale_x_discrete(limits=dt.bar$method) +
     scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
-    ggsci::scale_color_jco(name="Number of mRNA in the training model") +
+    ggsci::scale_color_jco(name="Number of cfRNA in the training model") +
     labs(x="ML Method",y="The mean AUC \nacross 5-fold CV with 5 repetitions") +
     geom_table(data=data.table(x="LASSO", y=0.03, tb=list(dt.baz)),aes(x=x,y=y, label=tb), size=5, table.theme = ttheme_gtlight ) +
     theme_Publication() +
@@ -291,7 +291,7 @@ Making the supplementary text figures are shown in @sec-suppl-figure.
     scale_x_discrete(limits=2:10) +
     scale_y_continuous(limits=c(0.7,max(dt.enet.lasso.tr$Score+10)),expand=c(0,0)) +
     scale_color_manual(values=c(cbPalette[4],cbPalette[3],"grey30",cbPalette[2]), breaks=c("BIC","AIC","AUC","LPOCV-AUC")) +
-    labs(x="Number of predictor mRNA in the training model",y="Score") +
+    labs(x="Number of predictor cfRNA in the training model",y="Score") +
     #facet_wrap(Method~.,ncol=2,scales="free_y",strip.position="top") +
     ggbreak::scale_y_break(c(1, 25),scales="free") +
     theme_Publication() +
@@ -319,7 +319,7 @@ Making the supplementary text figures are shown in @sec-suppl-figure.
 ```
 
 ## Figure 4 {#sec-fig4}
-![Figure 4 in the paper](static/figure/cfRNA.Fig4.png){#fig-fig4}
+![Figure 4 in the paper](static/figure/cfRNA.Fig4r2.png){#fig-fig4}
 
 ### Figure 4A {#sec-fig4a}
 ```{r}
@@ -374,7 +374,7 @@ Making the supplementary text figures are shown in @sec-suppl-figure.
     geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi),position=position_dodge(width=0.8), size=.8,alpha=.8) +
     scale_color_manual(values=c("grey30","grey60")) +
     scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
-    ylab("AUC") + xlab("Number of predictor mRNA in the training model") +
+    ylab("AUC") + xlab("Number of predictor cfRNA in the training model") +
     facet_grid(Source~GA) + 
     theme_Publication() + 
     theme(legend.position="top")
@@ -383,7 +383,7 @@ Making the supplementary text figures are shown in @sec-suppl-figure.
   p4.enet.lasso.val3<-ggplot(dt.foo, aes(FN, AUC)) + 
     geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi), size=.8,alpha=.8, col="grey30") +
     scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
-    ylab("AUC") + xlab("Number of predictor mRNA in the training model") +
+    ylab("AUC") + xlab("Number of predictor cfRNA in the training model") +
     facet_grid(Source~GA) + 
     theme_Publication() +
     theme(legend.position="top", panel.border = element_rect(colour = "black"))
@@ -392,7 +392,7 @@ Making the supplementary text figures are shown in @sec-suppl-figure.
     geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi,col=GA), position=position_dodge(width=.8), size=.8,alpha=.8) +
     scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
     ggsci::scale_color_jama() +
-    ylab("AUC") + xlab("Number of predictor mRNA in the training model") +
+    ylab("AUC") + xlab("Number of predictor cfRNA in the training model") +
     facet_grid(Source~.) + 
     theme_Publication() +
     theme(legend.position="top", panel.border = element_rect(colour = "black"))
@@ -403,7 +403,7 @@ Making the supplementary text figures are shown in @sec-suppl-figure.
 #| label: fig-4b
 #| eval: false
   ########################################################################
-  ## Two univariable mRNA models (LEP and PAPPA2) + 2- and 3-mRNA models #
+  ## Two univariable cfRNA models (LEP and PAPPA2) + 2- and 3-cfRNA models #
   ########################################################################
   #dt.best.result[predictor=="LEP,LY6G6D,PAPPA2",predictor:="LEP,PAPPA2,LY6G6D"] # rename
   dt.best.result<-dt.best.result[predictor!="LEP,LY6G6D,PAPPA2"] # remove these rows
@@ -419,7 +419,7 @@ Making the supplementary text figures are shown in @sec-suppl-figure.
     geom_pointrange(aes(ymin=AUC_lo, ymax=AUC_hi),col="grey30",size=.9,alpha=.8) +
     scale_x_discrete(limits=dt.baz[,.N,predictor]$predictor) +
     scale_y_continuous(expand=c(0,0),breaks=c(0,.2,.4,.6,.8,1), limit=c(0,1.05)) +
-    ylab("AUC") + xlab("mRNA(s) in the predictive models") +
+    ylab("AUC") + xlab("cfRNA(s) in the predictive models") +
     facet_grid(Source~GA) + 
     theme_Publication() +
     theme(legend.position="",
