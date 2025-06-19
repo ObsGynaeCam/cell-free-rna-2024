@@ -12,7 +12,7 @@ $$F_1  score=2  (Precision×Recall)/(Precision+Recall)$$
 
 Finally, we chose the pipeline based on the higher value of F1 score which is in favour of a smaller number of FP and FN.
 
-For the 42 chrY genes, we found that a smaller number of reads was quantified from the female samples when “Salmon (SA mode)” was used compared to “HiSat2+Salmon” – this pattern was more noticeable from the samples of advanced gestation (@sec-si-figure-a). Therefore, the number of FP and FN were smaller for “Salmon (SA mode)” (Supplementary Text Table 2), and the F1 score was higher for “Salmon (SA mode)” than “HiSat2+Salmon” (@sec-si-figure-b and Supplementary Text Table 2). Based on the 10M down-sampled RNA-seq samples, there were 24 and 16 chrY genes quantified as having at least one read from the 100 randomly selected samples, by “HiSat2+Salmon” and “Salmon (SA mode)”, respectively (@sec-si-figure-c).
+For the 42 chrY genes, we found that a smaller number of reads was quantified from the female samples when “Salmon (SA mode)” was used compared to “HiSat2+Salmon” – this pattern was more noticeable from the samples of advanced gestation (@sec-si-fig1a). Therefore, the number of FP and FN were smaller for “Salmon (SA mode)” (Supplementary Text Table 2), and the F1 score was higher for “Salmon (SA mode)” than “HiSat2+Salmon” (@sec-si-fig1b and Supplementary Text Table 2). Based on the 10M down-sampled RNA-seq samples, there were 24 and 16 chrY genes quantified as having at least one read from the 100 randomly selected samples, by “HiSat2+Salmon” and “Salmon (SA mode)”, respectively (@sec-si-fig1c).
 
 ## Randomly select 100 samples and downsample reads {#sec-si-rand}
 

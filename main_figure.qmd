@@ -4,7 +4,7 @@ This chapter demonstrates the `R` and the `dot` codes that make the main figures
 Making the supplementary text figures are shown in @sec-suppl-figure.
 
 ## Figure 1 {#sec-fig1}
-![Figure 1 in the paper](static/figure/cfRNA.Fig1r.png){#fig-fig1}
+![Figure 1 in the paper](static/figure/cfRNA.Fig1r2.png){#fig-fig1}
 
 [Figure 1](https://BioRender.com/bwfj19q) was made using the [Biorender](http://www.biorender.com), except some inlet figures (shown further below, e.g. [@sec-fig2; @sec-fig3; @sec-fig4; @sec-fig5]) made by `R`, and workflow diagrams (e.g. [@fig-gv-quant; @fig-gv-discovery; @fig-gv-validation; @fig-gv-munchel]) written in [DOT (Graphic Description Language)](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) such as [Graphviz](https://graphviz.org/), where you can see some example codes shown below.
 

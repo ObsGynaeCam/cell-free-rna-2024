@@ -3,9 +3,9 @@
 This chapter demonstrates the `R` codes that make supplementary text figures shown in the paper. 
 Making the main figures are shown in @sec-main-figure.
 
-## Supplementary Text Figure 1 {#sec-si-figure1}
+## Supplementary Text Figure 1 {#sec-si-fig1}
 
-### Supplementary Text Figure 1A {#sec-si-figure1-a}
+### Supplementary Text Figure 1A {#sec-si-fig1a}
 ![](static/figure/cfRNA.SI.FigA.png){#fig-si-fig1a}
 
 ```{r }
@@ -37,7 +37,7 @@ Making the main figures are shown in @sec-main-figure.
   dev.off()
 ```
 
-### Supplementary Text Figure 1B {#sec-si-figure-1b}
+### Supplementary Text Figure 1B {#sec-si-fig1b}
 ![](static/figure/cfRNA.SI.FigB.png){#fig-si-fig1b}
 
 ```{r }
@@ -97,7 +97,7 @@ Making the main figures are shown in @sec-main-figure.
   dev.off()
 ```
 
-### Supplementary Text Figure 1C {#sec-si-figure-1c}
+### Supplementary Text Figure 1C {#sec-si-fig1c}
 ![](static/figure/cfRNA.SI.FigC.png){#fig-si-fig1c}
 
 ```{r }
@@ -189,7 +189,7 @@ Making the main figures are shown in @sec-main-figure.
   dev.off()
 ```
 
-### Supplementary Text Figure 1D {#sec-si-figure-1d}
+### Supplementary Text Figure 1D {#sec-si-fig1d}
 ![](static/figure/cfRNA.SI.FigD.png){#fig-si-fig1d}
 
 ```{r }
@@ -254,7 +254,7 @@ Making the main figures are shown in @sec-main-figure.
   dev.off()
 ```
 
-## Supplementary Text Figure 2 {#sec-si-figure2}
+## Supplementary Text Figure 2 {#sec-si-fig2}
 ![](static/figure/cfRNA.SI.Fig2r2.png){#fig-si-fig2}
 
 ```{r}
@@ -322,7 +322,7 @@ cowplot::plot_grid(p.auc.combined.A, p.auc.bottom,ncol=1, labels=c("A",""),label
 dev.off()
 ```
 
-## Supplementary Text Figure 3 {#sec-si-figure3}
+## Supplementary Text Figure 3 {#sec-si-fig3}
 ![](static/figure/cfRNA.SI.Fig3.png){#fig-si-fig3}
 
 ```{r}
@@ -367,7 +367,7 @@ p.corr2
 dev.off()
 ```
 
-## Supplementary Text Figure 4, 5, and 6 {#sec-si-figure4-6}
+## Supplementary Text Figure 4, 5, and 6 {#sec-si-fig4-6}
 ![](static/figure/cfRNA.SI.Fig4.5.6.pdf#zoom=50&&navpanes=0&statusbar=0&messages=0&pagemode=none){width=100% height=475px}
 [Full Screen](static/figure/cfRNA.SI.Fig4.5.6.pdf)
 
