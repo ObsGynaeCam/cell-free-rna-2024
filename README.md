@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/874686956.svg)](https://doi.org/10.5281/zenodo.15696963)
 ![Quarto Publish](https://github.com/ObsGynaeCam/cell-free-rna-2024/actions/workflows/publish.yml/badge.svg)
 
 [This repo](https://github.com/ObsGynaeCam/cell-free-rna-2024/) is to supplement the manuscript titled **Elevated levels of circulating Leptin (LEP) and Pappalysin2 (PAPPA2) cell-free RNAs are the hallmarks of pregnancies complicated by preeclampsia combined with fetal growth restriction** by Gong _et al._ accepted to publish in Nature Communications.
